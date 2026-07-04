@@ -1,0 +1,227 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Custom Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0A0A0A;
+}
+::-webkit-scrollbar-thumb {
+  background: #232323;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FF3B30;
+}
+
+/* Custom tabular alignment utility */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Smooth transitions for theme changes */
+*, *::before, *::after {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+/* Core scrollbar thumb hover */
+::-webkit-scrollbar-thumb:hover {
+  background: #D988A1;
+}
+
+/* Global resets for the Premium Glassmorphism Dark Mode Theme */
+body, html {
+  background: linear-gradient(135deg, #0f0c29 0%, #15102a 50%, #302b63 100%) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  min-height: 100vh;
+}
+
+/* Redefine EAE7E4 and workspace backgrounds to transparent/glassy to allow the backdrop-filter and gradient to shine through */
+.bg-\[\#EAE7E4\],
+#app-workspace-layout,
+.bg-\[\#13111C\],
+.bg-\[\#13111C\]\/60 {
+  background: transparent !important;
+}
+
+/* Primary Glassmorphism Containers - applies to all cards, sidebar panels, and dialogs */
+.bg-white,
+.bg-white\/95,
+.bg-white\/90,
+.bg-white\/85,
+.bg-white\/80,
+.bg-\[\#1F1D2B\],
+.bg-\[\#1F1D2B\]\/95,
+.bg-\[\#1F1D2B\]\/80,
+aside,
+#desktop-sidebar {
+  background: rgba(8, 6, 12, 0.82) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.75) !important;
+  border-radius: 24px !important;
+}
+
+/* Secondary glass containers for internal cards, list items, etc. */
+.bg-\[\#F4F2F0\],
+.bg-\[\#F4F2F0\]\/50,
+.bg-neutral-50,
+.bg-neutral-100 {
+  background: rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.04) !important;
+  border-radius: 20px !important;
+}
+
+/* Text and Headings: Pure white for primary headings, and a muted lavender-gray (or semi-transparent white) for secondary text */
+.text-neutral-900,
+.text-neutral-800,
+.text-neutral-700,
+.text-neutral-600,
+.text-black,
+.text-\[\#141414\],
+h1, h2, h3, h4, h5, h6,
+.font-heading {
+  color: #FFFFFF !important;
+}
+
+.text-neutral-500,
+.text-neutral-400 {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Borders */
+.border-\[\#E2E1DE\],
+.border-\[\#E2E1DE\]\/80,
+.border-\[\#E5E7EB\],
+.border-neutral-200,
+.border-neutral-200\/80,
+.border-neutral-100,
+.border-neutral-800,
+.border-neutral-800\/60,
+.border-neutral-200\/10 {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Inputs, Selects, Textareas with glassy style */
+input, select, textarea {
+  background: rgba(255, 255, 255, 0.02) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border-radius: 20px !important;
+}
+input::placeholder, textarea::placeholder {
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: #D988A1 !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  box-shadow: 0 0 15px rgba(217, 136, 161, 0.25) !important;
+}
+
+/* Highly rounded corners on all cards, buttons, search bars (20px to 24px) */
+.rounded-3xl, .rounded-2xl {
+  border-radius: 24px !important;
+}
+.rounded-xl {
+  border-radius: 20px !important;
+}
+
+/* Solid glowing gradient buttons and active elements */
+.bg-\[\#FF3B30\],
+.bg-gradient-to-r.from-\[\#D988A1\].to-\[\#8A5A7B\] {
+  background: linear-gradient(135deg, #D988A1 0%, #8A5A7B 100%) !important;
+  color: #FFFFFF !important;
+  border: none !important;
+  box-shadow: 0 4px 15px rgba(217, 136, 161, 0.35) !important;
+}
+
+.text-\[\#FF3B30\] {
+  color: #D988A1 !important;
+}
+.border-\[\#FF3B30\] {
+  border-color: rgba(217, 136, 161, 0.5) !important;
+}
+
+/* Hover background modifications */
+.hover\:bg-neutral-50:hover, .hover\:bg-white\/5:hover {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+}
+.hover\:bg-neutral-100:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+.hover\:border-neutral-300:hover, .hover\:border-\[\#141414\]:hover {
+  border-color: #D988A1 !important;
+}
+
+/* Interactive chips and badges */
+.bg-\[\#141414\]\/10 {
+  background-color: rgba(217, 136, 161, 0.15) !important;
+}
+.text-\[\#141414\] {
+  color: #D988A1 !important;
+}
+.border-\[\#141414\]\/20 {
+  border-color: rgba(217, 136, 161, 0.3) !important;
+}
+
+/* Chart adjustments for glass theme */
+.recharts-cartesian-grid line {
+  stroke: rgba(255, 255, 255, 0.05) !important;
+}
+.recharts-default-tooltip {
+  background-color: rgba(21, 18, 38, 0.9) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 16px !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4) !important;
+}
+.recharts-tooltip-item {
+  color: #FFFFFF !important;
+}
+
+/* Specific class styling for dark mode alternate view */
+.dark {
+  /* Royal Amethyst Alternate style rules if needed */
+  --theme-glow: 0 0 12px rgba(217, 136, 161, 0.2);
+}
+
+/* Voice glow pulse animation for listening state */
+@keyframes mic-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(217, 136, 161, 0.5), 0 0 0 0 rgba(138, 90, 123, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 15px 6px rgba(217, 136, 161, 0.7), 0 0 20px 10px rgba(138, 90, 123, 0.4);
+    transform: scale(1.08);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(217, 136, 161, 0), 0 0 0 0 rgba(138, 90, 123, 0);
+    transform: scale(1);
+  }
+}
+
+.animate-mic-listening {
+  animation: mic-pulse 1.6s infinite ease-in-out;
+  background: linear-gradient(135deg, #D988A1 0%, #8A5A7B 100%) !important;
+  color: #FFFFFF !important;
+  border-color: transparent !important;
+}
