@@ -1,0 +1,6 @@
+{
+  "name": "A.A.R.Y.A - AI CFO Agent",
+  "description": "AI-powered CFO Agent (A.A.R.Y.A) and financial dashboard for small businesses. Manage ledger, cash flow, billing, and converse with a virtual financial officer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
