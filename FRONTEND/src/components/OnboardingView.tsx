@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Sparkles, Building2, TrendingUp, DollarSign, Wallet, ArrowRight, ArrowLeft } from "lucide-react";
+import { Sparkles, Building2, TrendingUp, DollarSign, Wallet, ArrowRight, ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { onboardCompany } from "../services/apiClient";
 
 interface OnboardingProps {
   onComplete: (data: {
@@ -9,16 +10,19 @@ interface OnboardingProps {
     currency: string;
     currencySymbol: string;
     startingBalance: number;
+    companyId?: string;
   }) => void;
   defaultEmail: string;
 }
 
 export const OnboardingView: React.FC<OnboardingProps> = ({ onComplete, defaultEmail }) => {
   const [step, setStep] = useState(1);
-  const [businessName, setBusinessName] = useState("Surinder Trades & Consulting");
-  const [industry, setIndustry] = useState("Consulting & Services");
-  const [currency, setCurrency] = useState("USD ($)");
-  const [startingBalance, setStartingBalance] = useState("15254.37");
+  const [businessName, setBusinessName] = useState("");
+  const [industry, setIndustry] = useState("Software & SaaS");
+  const [currency, setCurrency] = useState("INR (₹)");
+  const [startingBalance, setStartingBalance] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState("");
 
   const industries = [
     "Consulting & Services",
@@ -41,20 +45,44 @@ export const OnboardingView: React.FC<OnboardingProps> = ({ onComplete, defaultE
     { value: "AUD ($)", symbol: "$" }
   ];
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 1) {
       if (!businessName.trim()) return;
       setStep(2);
     } else {
-      const selectedCurr = currencies.find((c) => c.value === currency) || currencies[0];
+      const selectedCurr = currencies.find((c) => c.value === currency) || currencies[4]; // default INR
       const parsedBalance = parseFloat(startingBalance) || 0;
-      onComplete({
-        businessName,
-        industry,
-        currency,
-        currencySymbol: selectedCurr.symbol,
-        startingBalance: parsedBalance
-      });
+      setApiError("");
+      setLoading(true);
+      try {
+        // ── Call POST /api/companies/onboard ─────────────────────────────────
+        let companyId: string | undefined;
+        try {
+          const result = await onboardCompany({ name: businessName }) as any;
+          companyId = result?.data?.id ?? result?.data?.company_id;
+        } catch (err: any) {
+          // If the error is "already has company" we can still proceed
+          const msg: string = err?.message ?? "";
+          if (!msg.includes("ALREADY_HAS_COMPANY") && !msg.includes("already belong")) {
+            setApiError(
+              msg || "Failed to register your company. Please check your connection and try again."
+            );
+            setLoading(false);
+            return;
+          }
+        }
+
+        onComplete({
+          businessName,
+          industry,
+          currency,
+          currencySymbol: selectedCurr.symbol,
+          startingBalance: parsedBalance,
+          companyId,
+        });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -194,6 +222,14 @@ export const OnboardingView: React.FC<OnboardingProps> = ({ onComplete, defaultE
           )}
         </AnimatePresence>
 
+        {/* API Error Banner */}
+        {apiError && (
+          <div className="mt-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-medium flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{apiError}</span>
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex items-center justify-between mt-8 pt-6 border-t border-neutral-100">
           {step === 2 ? (
@@ -201,7 +237,8 @@ export const OnboardingView: React.FC<OnboardingProps> = ({ onComplete, defaultE
               type="button"
               id="onboarding-back-btn"
               onClick={handleBack}
-              className="flex items-center gap-2 px-5 py-3 rounded-xl border border-neutral-200 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-50 bg-white shadow-sm transition-all text-xs font-bold"
+              disabled={loading}
+              className="flex items-center gap-2 px-5 py-3 rounded-xl border border-neutral-200 text-neutral-500 hover:text-neutral-800 hover:bg-neutral-50 bg-white shadow-sm transition-all text-xs font-bold disabled:opacity-50"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Back</span>
@@ -214,10 +251,20 @@ export const OnboardingView: React.FC<OnboardingProps> = ({ onComplete, defaultE
             type="button"
             id="onboarding-next-btn"
             onClick={handleNext}
-            className="flex items-center gap-2.5 px-6 py-3.5 rounded-xl bg-[#141414] text-[#FF3B30] hover:opacity-95 transition-all font-heading font-bold text-sm ml-auto shadow-md"
+            disabled={loading}
+            className="flex items-center gap-2.5 px-6 py-3.5 rounded-xl bg-[#141414] text-[#FF3B30] hover:opacity-95 active:scale-[0.98] transition-all font-heading font-bold text-sm ml-auto shadow-md disabled:opacity-60"
           >
-            <span>{step === 1 ? "Next Step" : "Complete Setup"}</span>
-            <ArrowRight className="w-4.5 h-4.5" />
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Creating company...</span>
+              </>
+            ) : (
+              <>
+                <span>{step === 1 ? "Next Step" : "Complete Setup"}</span>
+                <ArrowRight className="w-4.5 h-4.5" />
+              </>
+            )}
           </button>
         </div>
       </motion.div>

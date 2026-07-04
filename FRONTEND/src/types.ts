@@ -56,6 +56,8 @@ export interface BusinessState {
   onboarded: boolean;
   loggedIn: boolean;
   userEmail?: string;
+  /** Backend company UUID returned after POST /api/companies/onboard */
+  companyId?: string;
 }
 
 export type ViewType =

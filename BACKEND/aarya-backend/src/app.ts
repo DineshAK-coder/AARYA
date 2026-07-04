@@ -23,11 +23,27 @@ const app = express();
 app.use(helmet());
 
 // CORS – tighten origins in production
+// CORS_ORIGIN env var may be a single origin or comma-separated list
+const rawOrigins = process.env.CORS_ORIGIN ?? '*';
+const allowedOrigins: string | string[] | RegExp =
+  rawOrigins === '*'
+    ? '*'
+    : rawOrigins.split(',').map((o) => o.trim());
+
 app.use(
   cors({
-    origin:  process.env.CORS_ORIGIN ?? '*',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. curl, Postman, server-to-server)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins === '*') return callback(null, true);
+      if ((allowedOrigins as string[]).includes(origin)) {
+        return callback(null, true);
+      }
+      callback(new Error(`CORS: origin '${origin}' not allowed`));
+    },
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
   })
 );
 

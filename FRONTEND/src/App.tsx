@@ -14,24 +14,29 @@ import { AuditTrailView } from "./components/AuditTrailView";
 import { SettingsView } from "./components/SettingsView";
 import { UploadView } from "./components/UploadView";
 import { FounderSummaryView } from "./components/FounderSummaryView";
+import { postChat, supabase } from "./services/apiClient";
 
 export default function App() {
+  // ── App state — always starts as NOT logged in ─────────────────────────────
+  // We restore the session from Supabase below (useEffect). We do NOT
+  // trust localStorage's loggedIn flag directly because the JWT may have
+  // expired. Only a valid Supabase session counts.
   const [state, setState] = useState<BusinessState>(() => {
     try {
-      const stored = localStorage.getItem("nova_cfo_business_state");
+      const stored = localStorage.getItem("aarya_business_state");
       if (stored) {
         const parsed = JSON.parse(stored);
-        parsed.loggedIn = true;
+        // Always reset loggedIn — Supabase session check will set it
+        parsed.loggedIn = false;
         return parsed;
       }
     } catch (e) {
       console.error("Failed to parse cached business state:", e);
     }
-    // Fallback to rich preseeded metrics
-    return { ...initialBusinessState, loggedIn: true };
+    return { ...initialBusinessState };
   });
 
-  const [currentView, setView] = useState<ViewType>("dashboard");
+  const [currentView, setView] = useState<ViewType>("landing");
   const [quickCustomerName, setQuickCustomerName] = useState<string>("");
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     try {
@@ -45,10 +50,53 @@ export default function App() {
     return "dark";
   });
 
-  // Sync state mutations to LocalStorage for durability
+  // ── Persist state to localStorage ─────────────────────────────────────────
   useEffect(() => {
-    localStorage.setItem("nova_cfo_business_state", JSON.stringify(state));
+    localStorage.setItem("aarya_business_state", JSON.stringify(state));
   }, [state]);
+
+  // ── Restore Supabase session on mount ──────────────────────────────────────
+  // Also subscribe to auth events so any sign-in / sign-out / token refresh
+  // automatically keeps the UI in sync without page reload.
+  useEffect(() => {
+    if (!supabase) return;
+
+    // Restore existing session (e.g. after page refresh)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        const email = session.user.email ?? "";
+        setState(prev => ({
+          ...prev,
+          loggedIn: true,
+          userEmail: email,
+        }));
+        // Decide which view to land on
+        setView(prev => {
+          const s = JSON.parse(localStorage.getItem("aarya_business_state") || "{}");
+          return s?.onboarded ? "dashboard" : "onboarding";
+        });
+      }
+    });
+
+    // Subscribe to future auth events
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (session?.user) {
+          setState(prev => ({
+            ...prev,
+            loggedIn: true,
+            userEmail: session.user.email ?? prev.userEmail,
+          }));
+        } else {
+          // Signed out — reset to clean state
+          setState({ ...initialBusinessState });
+          setView("landing");
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Handle theme class on document element
   useEffect(() => {
@@ -177,6 +225,7 @@ export default function App() {
     currency: string;
     currencySymbol: string;
     startingBalance: number;
+    companyId?: string;
   }) => {
     setState(prev => ({
       ...prev,
@@ -185,7 +234,8 @@ export default function App() {
       currency: data.currency,
       currencySymbol: data.currencySymbol,
       startingBalance: data.startingBalance,
-      onboarded: true
+      companyId: data.companyId,
+      onboarded: true,
     }));
 
     logActivity({
@@ -197,12 +247,14 @@ export default function App() {
     setView("dashboard");
   };
 
-  const handleLogout = () => {
-    setState(prev => ({
-      ...prev,
-      loggedIn: false
-    }));
-    setView("landing");
+  const handleLogout = async () => {
+    // Sign out from Supabase — the onAuthStateChange listener will reset state
+    if (supabase) {
+      await supabase.auth.signOut();
+    } else {
+      setState({ ...initialBusinessState });
+      setView("landing");
+    }
   };
 
   // Navigates directly into virtual CFO chat with preseeded prompt
@@ -223,25 +275,19 @@ export default function App() {
 
   const triggerChatFetch = async (userMsg: CfoMessage, text: string) => {
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [...state.chatHistory, userMsg],
-          context: {
-            businessName: state.businessName,
-            industry: state.industry,
-            currency: state.currency,
-            currencySymbol: state.currencySymbol,
-            startingBalance: state.startingBalance,
-            ledger: state.ledger,
-            invoices: state.invoices,
-            activities: state.activities
-          }
-        })
+      const data = await postChat({
+        messages: [...state.chatHistory, userMsg],
+        context: {
+          businessName: state.businessName,
+          industry: state.industry,
+          currency: state.currency,
+          currencySymbol: state.currencySymbol,
+          startingBalance: state.startingBalance,
+          ledger: state.ledger,
+          invoices: state.invoices,
+          activities: state.activities
+        }
       });
-
-      const data = await response.json();
       
       addChatMessage({
         id: "msg_agent_quick_" + Date.now(),

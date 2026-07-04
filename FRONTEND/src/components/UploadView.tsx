@@ -1,7 +1,8 @@
 import React, { useState, useRef } from "react";
-import { Upload, FileSpreadsheet, Check, AlertCircle, RefreshCw, Eye } from "lucide-react";
+import { Upload, FileSpreadsheet, Check, AlertCircle, RefreshCw, Eye, XCircle } from "lucide-react";
 import { motion } from "motion/react";
 import { BusinessState, LedgerItem } from "../types";
+import { uploadTransactions } from "../services/apiClient";
 
 interface UploadViewProps {
   state: BusinessState;
@@ -12,8 +13,10 @@ interface UploadViewProps {
 export const UploadView: React.FC<UploadViewProps> = ({ state, logActivity, addLedgerItem }) => {
   const [dragActive, setDragActive] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [uploadState, setUploadState] = useState<"idle" | "uploading" | "parsed" | "integrated">("idle");
+  const [uploadState, setUploadState] = useState<"idle" | "uploading" | "parsed" | "integrated" | "error">("idle");
   const [parsedRows, setParsedRows] = useState<any[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [mappingSource, setMappingSource] = useState<string>("auto");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = (e: React.DragEvent) => {
@@ -26,20 +29,41 @@ export const UploadView: React.FC<UploadViewProps> = ({ state, logActivity, addL
     }
   };
 
-  const processFile = (selectedFile: File) => {
+  const processFile = async (selectedFile: File) => {
     setFile(selectedFile);
     setUploadState("uploading");
+    setUploadError(null);
 
-    // Simulate Parsing of CSV / Excel Sheets
-    setTimeout(() => {
-      setUploadState("parsed");
-      setParsedRows([
-        { id: "col_101", name: "Razorpay Software", amount: 450000, type: "Receivable", dueDate: "2026-07-20", initials: "RP" },
-        { id: "col_102", name: "AWS India Regional", amount: -120000, type: "Payable", dueDate: "2026-07-15", initials: "AW" },
-        { id: "col_103", name: "Deel Payroll Service", amount: -310000, type: "Payable", dueDate: "2026-07-10", initials: "DL" },
-        { id: "col_104", name: "Ather Energy Private", amount: 890000, type: "Receivable", dueDate: "2026-07-30", initials: "AE" },
-      ]);
-    }, 1500);
+    try {
+      // ── Real backend call ──────────────────────────────────────────────────
+      const result = await uploadTransactions(selectedFile);
+
+      if (result.success) {
+        // Build preview rows from the backend's detected mappings info.
+        // The backend returns the count of inserted rows; we create placeholder
+        // summary rows for the preview table.
+        setMappingSource(result.data.mapping_source ?? "auto");
+        setParsedRows(
+          Array.from({ length: Math.min(result.data.inserted, 10) }, (_, i) => ({
+            id: `row_${i}`,
+            name: `Transaction ${i + 1}`,
+            amount: 0,
+            type: "Imported",
+            dueDate: new Date().toISOString().split("T")[0],
+            initials: "TX",
+          }))
+        );
+        // Store the real insert count for display
+        setParsedRows([{ id: "summary", name: `${result.data.inserted} transactions imported`, amount: 0, type: "Imported", dueDate: "-", initials: "✓" }]);
+        setUploadState("parsed");
+      } else {
+        throw new Error("Backend returned success:false");
+      }
+    } catch (err: any) {
+      console.error("[UploadView] Upload failed:", err);
+      setUploadError(err?.message ?? "Upload failed. Please check the backend server.");
+      setUploadState("error");
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -94,6 +118,8 @@ export const UploadView: React.FC<UploadViewProps> = ({ state, logActivity, addL
     setFile(null);
     setUploadState("idle");
     setParsedRows([]);
+    setUploadError(null);
+    setMappingSource("auto");
   };
 
   return (
@@ -161,9 +187,22 @@ export const UploadView: React.FC<UploadViewProps> = ({ state, logActivity, addL
               <div className="space-y-4 py-6">
                 <RefreshCw className="w-10 h-10 text-[#FF3B30] animate-spin mx-auto" />
                 <div>
-                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Parsing Ledger Integrity...</h3>
-                  <p className="text-xs text-neutral-400 font-mono mt-1">Cross-referencing transactions with GST rules and TDS schemas</p>
+                  <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Uploading to AARYA Backend...</h3>
+                  <p className="text-xs text-neutral-400 font-mono mt-1">Hybrid ingestion engine is parsing headers via Fuse.js + Gemini AI</p>
                 </div>
+              </div>
+            )}
+
+            {uploadState === "error" && (
+              <div className="space-y-4 py-6">
+                <XCircle className="w-10 h-10 text-red-500 mx-auto" />
+                <div>
+                  <h3 className="text-sm font-bold text-red-500">Upload Failed</h3>
+                  <p className="text-xs text-neutral-400 font-mono mt-1">{uploadError || "An unexpected error occurred."}</p>
+                </div>
+                <button onClick={resetUploader} className="px-5 py-2 rounded-xl bg-neutral-900 dark:bg-neutral-800 text-white text-xs font-bold hover:bg-neutral-800 transition-all">
+                  Try Again
+                </button>
               </div>
             )}
 

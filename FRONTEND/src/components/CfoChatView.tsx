@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Sparkles, Send, Bot, User, HelpCircle, Loader2, Mic } from "lucide-react";
 import { BusinessState, CfoMessage } from "../types";
+import { postChat } from "../services/apiClient";
 
 interface CfoChatProps {
   state: BusinessState;
@@ -67,26 +68,20 @@ export const CfoChatView: React.FC<CfoChatProps> = ({ state, addChatMessage, cle
     setLoading(true);
 
     try {
-      // API call to Express backend
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [...state.chatHistory, userMsg],
-          context: {
-            businessName: state.businessName,
-            industry: state.industry,
-            currency: state.currency,
-            currencySymbol: currencySymbol,
-            startingBalance: state.startingBalance,
-            ledger: state.ledger,
-            invoices: state.invoices,
-            activities: state.activities
-          }
-        })
+      // API call to backend via centralized apiClient
+      const data = await postChat({
+        messages: [...state.chatHistory, userMsg],
+        context: {
+          businessName: state.businessName,
+          industry: state.industry,
+          currency: state.currency,
+          currencySymbol: currencySymbol,
+          startingBalance: state.startingBalance,
+          ledger: state.ledger,
+          invoices: state.invoices,
+          activities: state.activities
+        }
       });
-
-      const data = await response.json();
       
       const agentMsg: CfoMessage = {
         id: "msg_" + (Date.now() + 1),
