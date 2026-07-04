@@ -106,6 +106,32 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
   return (
     <div id="dashboard-view-container" className="flex-1 overflow-y-auto px-4 md:px-8 py-6 pb-24 text-neutral-900 bg-[#EAE7E4] dark:bg-[#13111C] dark:text-white transition-colors duration-300">
       
+      {/* Sleek Morning Briefing Glass Pill Toast */}
+      <div 
+        className={`w-full max-w-4xl mx-auto mb-6 transition-all duration-500 ease-out transform ${
+          showBriefing ? "opacity-100 max-h-24 scale-100 translate-y-0" : "opacity-0 max-h-0 scale-95 -translate-y-4 overflow-hidden pointer-events-none mb-0"
+        }`}
+      >
+        <div className="flex items-center justify-between gap-4 p-3.5 px-6 rounded-full bg-black/60 backdrop-blur-md border border-white/10 shadow-2xl">
+          <div className="flex items-center gap-3">
+            <span className="text-base">⚠️</span>
+            <span className="text-xs font-semibold text-white tracking-wide uppercase font-mono bg-[#D988A1]/20 px-2.5 py-0.5 rounded-full">Briefing</span>
+            <p className="text-xs text-white/90 font-medium">
+              3 invoices crossing 30 days overdue today. Recommend sending a collection reminder.
+            </p>
+          </div>
+          <button 
+            onClick={() => setShowBriefing(false)}
+            className="text-white/45 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10 shrink-0"
+            aria-label="Dismiss briefing"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
       {/* Greeting & Header row */}
       <div className="mb-8 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
         <div>
@@ -119,7 +145,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
         </div>
 
         {/* Total Cash / Cash Flow Card with prominent pink gradient button */}
-        <div className="bg-white dark:bg-[#1F1D2B] border border-neutral-200 dark:border-neutral-800/60 rounded-[24px] p-6 w-full xl:w-auto xl:min-w-[400px] shadow-xl relative overflow-hidden flex flex-col justify-between transition-all">
+        <div className="bg-white dark:bg-[#1F1D2B] border border-neutral-200 dark:border-neutral-800/60 rounded-[24px] p-6 min-w-[320px] md:min-w-[400px] shadow-xl relative overflow-hidden flex flex-col justify-between transition-all">
           <div className="absolute -right-10 -top-10 w-32 h-32 bg-gradient-to-br from-[#D988A1]/20 to-[#8A5A7B]/20 rounded-full blur-2xl"></div>
           <div className="flex justify-between items-center relative z-10 mb-2">
             <span className="text-xs font-mono uppercase tracking-widest text-neutral-500 dark:text-[#9E9AA7] font-semibold">TOTAL HOLDINGS CASH FLOW</span>
@@ -143,10 +169,10 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
       </div>
 
       {/* Row of 4 Stat Cards: Runway, Cash Flow, Receivables, Payables */}
-      <div className="flex overflow-x-auto md:grid md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 pb-4 md:pb-0 snap-x snap-mandatory scrollbar-none">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         
         {/* Card 1: Runway (Months) */}
-        <div className="bg-white dark:bg-[#1F1D2B] border border-neutral-200 dark:border-neutral-800/60 hover:border-neutral-400 dark:hover:border-[#D988A1]/40 transition-all rounded-[24px] p-5 flex flex-col justify-between shadow-sm min-w-[280px] md:min-w-0 shrink-0 md:shrink snap-start">
+        <div className="bg-white dark:bg-[#1F1D2B] border border-neutral-200 dark:border-neutral-800/60 hover:border-neutral-400 dark:hover:border-[#D988A1]/40 transition-all rounded-[24px] p-5 flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between text-neutral-500">
             <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-[#9E9AA7]">Runway (Months)</span>
             <div className="w-8 h-8 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 flex items-center justify-center text-neutral-800 dark:text-white">
@@ -175,7 +201,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
         </div>
 
         {/* Card 2: Cash Flow */}
-        <div className="bg-white dark:bg-[#1F1D2B] border border-neutral-200 dark:border-neutral-800/60 hover:border-neutral-400 dark:hover:border-[#D988A1]/40 transition-all rounded-[24px] p-5 flex flex-col justify-between shadow-sm min-w-[280px] md:min-w-0 shrink-0 md:shrink snap-start">
+        <div className="bg-white dark:bg-[#1F1D2B] border border-neutral-200 dark:border-neutral-800/60 hover:border-neutral-400 dark:hover:border-[#D988A1]/40 transition-all rounded-[24px] p-5 flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between text-neutral-500">
             <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-[#9E9AA7]">Cash Flow</span>
             <div className="w-8 h-8 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 flex items-center justify-center text-neutral-800 dark:text-white">
@@ -204,7 +230,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
         </div>
 
         {/* Card 3: Receivables */}
-        <div className="bg-white dark:bg-[#1F1D2B] border border-neutral-200 dark:border-neutral-800/60 hover:border-neutral-400 dark:hover:border-[#D988A1]/40 transition-all rounded-[24px] p-5 flex flex-col justify-between shadow-sm min-w-[280px] md:min-w-0 shrink-0 md:shrink snap-start">
+        <div className="bg-white dark:bg-[#1F1D2B] border border-neutral-200 dark:border-neutral-800/60 hover:border-neutral-400 dark:hover:border-[#D988A1]/40 transition-all rounded-[24px] p-5 flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between text-neutral-500">
             <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-[#9E9AA7]">Receivables</span>
             <div className="w-8 h-8 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 flex items-center justify-center text-neutral-800 dark:text-white">
@@ -222,7 +248,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
         </div>
 
         {/* Card 4: Payables */}
-        <div className="bg-white dark:bg-[#1F1D2B] border border-neutral-200 dark:border-neutral-800/60 hover:border-neutral-400 dark:hover:border-[#D988A1]/40 transition-all rounded-[24px] p-5 flex flex-col justify-between shadow-sm min-w-[280px] md:min-w-0 shrink-0 md:shrink snap-start">
+        <div className="bg-white dark:bg-[#1F1D2B] border border-neutral-200 dark:border-neutral-800/60 hover:border-neutral-400 dark:hover:border-[#D988A1]/40 transition-all rounded-[24px] p-5 flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between text-neutral-500">
             <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-[#9E9AA7]">Payables</span>
             <div className="w-8 h-8 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 flex items-center justify-center text-neutral-800 dark:text-white">
@@ -469,123 +495,46 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
 
       </div>
 
-      {/* Grid: Corporate Staff Pool & Active Audit Log */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8" id="dashboard-staff-and-audit">
-        
-        {/* Corporate Staff Pool Card - Styled exactly like the uploaded image */}
-        <div className="bg-white dark:bg-[#0F0D19] border border-neutral-200 dark:border-white/5 rounded-[24px] p-6 shadow-xl flex flex-col justify-between transition-all">
+      {/* Recent Activity Feed */}
+      <div className="bg-white dark:bg-[#1F1D2B] border border-neutral-200 dark:border-neutral-800/60 rounded-[24px] p-6 shadow-sm">
+        <div className="flex justify-between items-center mb-6">
           <div>
-            <div className="flex justify-between items-center mb-1">
-              <h3 className="font-heading font-extrabold text-lg text-neutral-900 dark:text-white tracking-tight">
-                Corporate Staff Pool
-              </h3>
-              <span className="text-[9px] bg-gradient-to-r from-[#D988A1] to-[#8A5A7B]/60 text-white px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider">
-                Authorized
-              </span>
-            </div>
-            <p className="text-[11px] text-neutral-500 dark:text-[#9E9AA7] mb-5 font-mono tracking-wide">
-              Authorized company contributors
-            </p>
-
-            <div className="space-y-3">
-              {[
-                { name: "Johnathan Doe", role: "CEO & Co-founder", salary: 18500, initials: "JD", color: "#C17A91" },
-                { name: "Aria Sterling", role: "VP of Engineering", salary: 16200, initials: "AS", color: "#A36E85" },
-                { name: "Dinesh Kumar", role: "Principal Frontend", salary: 14100, initials: "DK", color: "#82546D" },
-                { name: "Seraphina Vance", role: "VP of Marketing", salary: 11500, initials: "SV", color: "#D696AA" }
-              ].map((staff, idx) => (
-                <div 
-                  key={idx}
-                  className="flex items-center justify-between p-3 px-4 rounded-[20px] bg-neutral-50 dark:bg-[#161324] border border-neutral-100 dark:border-white/[0.03] hover:border-neutral-300 dark:hover:border-white/10 hover:scale-[1.01] transition-all duration-300"
-                >
-                  <div className="flex items-center gap-3.5">
-                    {/* Initials Avatar Circle */}
-                    <div 
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-black text-white shrink-0 shadow-inner"
-                      style={{ backgroundColor: staff.color }}
-                    >
-                      {staff.initials}
-                    </div>
-                    {/* Name & Role */}
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold text-neutral-900 dark:text-white tracking-wide truncate">
-                        {staff.name}
-                      </div>
-                      <div className="text-[10px] text-neutral-400 dark:text-[#9E9AA7] font-medium mt-0.5">
-                        {staff.role}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Salary & Node Status */}
-                  <div className="text-right shrink-0">
-                    <div className="text-xs font-black text-emerald-600 dark:text-[#00E676] font-mono tracking-tight">
-                      ${staff.salary.toLocaleString()}/mo
-                    </div>
-                    <div className="text-[9px] text-[#9E9AA7] font-semibold mt-0.5 flex items-center gap-1 justify-end">
-                      <span className="text-emerald-500 font-bold">✓</span> Node Confirmed
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <h3 className="font-heading font-bold text-base text-neutral-900 dark:text-white">Active Audit Log</h3>
+            <p className="text-[11px] text-neutral-500 dark:text-[#9E9AA7]">Verifiable trace of ledger entries, billings, and cfo operations</p>
           </div>
-
-          <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800/40 mt-5">
-            <button 
-              onClick={() => onAskNova("Review payroll and cash reserves.")}
-              className="w-full py-2.5 rounded-[18px] bg-[#1A162D]/60 dark:bg-white/[0.04] border border-neutral-200 dark:border-white/10 text-neutral-700 dark:text-white/80 hover:text-white hover:bg-gradient-to-r hover:from-[#D988A1] hover:to-[#8A5A7B] text-[10px] font-bold uppercase tracking-widest transition-all duration-300 active:scale-95 flex items-center justify-center gap-1.5"
-            >
-              <Sparkles className="w-3 h-3 text-[#D988A1]" />
-              <span>Verify Node Authorization</span>
-            </button>
-          </div>
+          <button 
+            onClick={() => setView("audit")}
+            className="text-[10px] text-neutral-500 dark:text-[#9E9AA7] hover:text-[#D988A1] font-mono font-bold uppercase tracking-wider"
+          >
+            Full Trail
+          </button>
         </div>
 
-        {/* Recent Activity Feed */}
-        <div className="bg-white dark:bg-[#1F1D2B] border border-neutral-200 dark:border-neutral-800/60 rounded-[24px] p-6 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h3 className="font-heading font-bold text-base text-neutral-900 dark:text-white">Active Audit Log</h3>
-                <p className="text-[11px] text-neutral-500 dark:text-[#9E9AA7]">Verifiable trace of ledger entries, billings, and cfo operations</p>
+        <div className="space-y-4">
+          {state.activities.slice(0, 4).map((activity) => (
+            <div key={activity.id} className="flex items-start justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3 last:border-0 last:pb-0">
+              <div className="flex gap-3">
+                <div className="mt-0.5 shrink-0">
+                  {activity.actionType === "billing" && <Receipt className="w-4 h-4 text-neutral-400" />}
+                  {activity.actionType === "ledger" && <CheckCircle className="w-4 h-4 text-[#D988A1]" />}
+                  {activity.actionType === "chat" && <Sparkles className="w-4 h-4 text-[#D988A1]" />}
+                  {activity.actionType === "onboarding" && <Clock className="w-4 h-4 text-neutral-400" />}
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-neutral-800 dark:text-[#E2DFE9]">
+                    {activity.description}
+                  </p>
+                  <p className="text-[10px] text-neutral-400 dark:text-[#9E9AA7] font-mono mt-0.5">
+                    {activity.timestamp} &bull; action: {activity.actionType.toUpperCase()} {activity.customer && `• Customer: ${activity.customer}`}
+                  </p>
+                </div>
               </div>
-              <button 
-                onClick={() => setView("audit")}
-                className="text-[10px] text-neutral-500 dark:text-[#9E9AA7] hover:text-[#D988A1] font-mono font-bold uppercase tracking-wider"
-              >
-                Full Trail
-              </button>
+              <div className="text-right text-xs font-mono font-semibold tabular-nums text-neutral-600 dark:text-[#9E9AA7] shrink-0">
+                {state.currencySymbol}{activity.amount.toLocaleString("en-US", { minimumFractionDigits: 0 })}
+              </div>
             </div>
-
-            <div className="space-y-4">
-              {state.activities.slice(0, 4).map((activity) => (
-                <div key={activity.id} className="flex items-start justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3 last:border-0 last:pb-0">
-                  <div className="flex gap-3">
-                    <div className="mt-0.5 shrink-0">
-                      {activity.actionType === "billing" && <Receipt className="w-4 h-4 text-neutral-400" />}
-                      {activity.actionType === "ledger" && <CheckCircle className="w-4 h-4 text-[#D988A1]" />}
-                      {activity.actionType === "chat" && <Sparkles className="w-4 h-4 text-[#D988A1]" />}
-                      {activity.actionType === "onboarding" && <Clock className="w-4 h-4 text-neutral-400" />}
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-neutral-800 dark:text-[#E2DFE9]">
-                        {activity.description}
-                      </p>
-                      <p className="text-[10px] text-neutral-400 dark:text-[#9E9AA7] font-mono mt-0.5">
-                        {activity.timestamp} &bull; action: {activity.actionType.toUpperCase()} {activity.customer && `• Customer: ${activity.customer}`}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right text-xs font-mono font-semibold tabular-nums text-neutral-600 dark:text-[#9E9AA7] shrink-0">
-                    {state.currencySymbol}{activity.amount.toLocaleString("en-US", { minimumFractionDigits: 0 })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
-
       </div>
     </div>
   );

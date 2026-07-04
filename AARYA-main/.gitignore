@@ -1,0 +1,40 @@
+# ── Dependencies ─────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ── Build outputs ─────────────────────────────────────────────────────────────
+dist/
+build/
+*.cjs
+*.cjs.map
+
+# ── Environment / Secrets ─────────────────────────────────────────────────────
+# NEVER commit real credentials.
+# Copy .env.example → .env and fill in your own values locally.
+.env
+.env.local
+.env.*.local
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+
+# ── OS artefacts ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Editor / IDE ─────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ── TypeScript cache ──────────────────────────────────────────────────────────
+*.tsbuildinfo
+
+# ── Vite cache ───────────────────────────────────────────────────────────────
+.vite/
