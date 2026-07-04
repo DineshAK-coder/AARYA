@@ -14,6 +14,7 @@ import { AuditTrailView } from "./components/AuditTrailView";
 import { SettingsView } from "./components/SettingsView";
 import { UploadView } from "./components/UploadView";
 import { FounderSummaryView } from "./components/FounderSummaryView";
+import { MobileHeader } from "./components/MobileHeader";
 
 export default function App() {
   const [state, setState] = useState<BusinessState>(() => {
@@ -324,6 +325,12 @@ export default function App() {
         
         {/* Main core center view area */}
         <main id="app-main-panel" className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+          <MobileHeader 
+            businessName={state.businessName}
+            setView={setView}
+            onAskNova={handleAskNovaQuick}
+          />
+
           {currentView === "dashboard" && (
             <DashboardView 
               state={state}

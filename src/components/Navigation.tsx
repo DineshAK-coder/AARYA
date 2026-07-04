@@ -14,7 +14,13 @@ import {
   MoreHorizontal,
   Sun,
   Moon,
-  Upload
+  Upload,
+  Smartphone,
+  Bell,
+  X,
+  AlertTriangle,
+  CheckCircle2,
+  Shield
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ViewType } from "../types";
@@ -29,6 +35,48 @@ interface NavProps {
 }
 
 export const Sidebar: React.FC<NavProps> = ({ currentView, setView, businessName, onLogout, theme, setTheme }) => {
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([
+    {
+      id: "briefing-alert",
+      type: "warning",
+      title: "Morning Briefing Alert",
+      message: "3 invoices crossing 30 days overdue today. Recommend sending a collection reminder.",
+      time: "Just now",
+      read: false,
+    },
+    {
+      id: "1",
+      type: "warning",
+      title: "Salary Authorization Risk",
+      message: "Johnathan Doe authorization pending node confirmation for $18,500/mo.",
+      time: "2 mins ago",
+      read: false,
+    },
+    {
+      id: "2",
+      type: "success",
+      title: "Node Confirmed Successfully",
+      message: "Aria Sterling node confirmed at VP status with billing $16,200/mo.",
+      time: "15 mins ago",
+      read: false,
+    },
+    {
+      id: "3",
+      type: "info",
+      title: "AARYA Audit Node Live",
+      message: "CFO agent system secure 5G uplink tunnel established on port 3000.",
+      time: "1 hour ago",
+      read: false,
+    },
+  ]);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const markAllAsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "chat", label: "Ask AARYA Chat", icon: Sparkles },
@@ -38,18 +86,103 @@ export const Sidebar: React.FC<NavProps> = ({ currentView, setView, businessName
   ];
 
   return (
-    <aside id="desktop-sidebar" className="hidden lg:flex flex-col w-[250px] bg-[#13111C] border-r border-neutral-200/10 dark:border-neutral-800/60 h-screen sticky top-0 text-white select-none">
+    <aside id="desktop-sidebar" className="hidden lg:flex flex-col w-[250px] bg-[#13111C] border-r border-neutral-200/10 dark:border-neutral-800/60 h-screen sticky top-0 text-white select-none relative z-50">
       {/* Brand Logo */}
-      <div className="p-6 border-b border-neutral-200/10 dark:border-neutral-800/60 flex items-center gap-3 bg-[#1F1D2B]/40 backdrop-blur-md">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#D988A1] to-[#8A5A7B] flex items-center justify-center text-white font-bold text-lg shadow-md shadow-[#D988A1]/20">
-          A
+      <div className="p-6 border-b border-neutral-200/10 dark:border-neutral-800/60 flex items-center justify-between bg-[#1F1D2B]/40 backdrop-blur-md relative">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#D988A1] to-[#8A5A7B] flex items-center justify-center text-white font-bold text-lg shadow-md shadow-[#D988A1]/20">
+            A
+          </div>
+          <div>
+            <h1 className="font-heading font-bold text-lg tracking-wider text-white flex items-center gap-1">
+              AARYA
+            </h1>
+            <p className="text-[10px] text-[#9E9AA7] truncate max-w-[100px] font-mono uppercase tracking-widest">AI CFO</p>
+          </div>
         </div>
-        <div>
-          <h1 className="font-heading font-bold text-lg tracking-wider text-white flex items-center gap-1">
-            AARYA
-          </h1>
-          <p className="text-[10px] text-[#9E9AA7] truncate max-w-[140px] font-mono uppercase tracking-widest">AI CFO COPILOT</p>
-        </div>
+
+        {/* Desktop Notification Bell option */}
+        <button
+          id="desktop-notification-toggle"
+          onClick={() => {
+            setShowNotifications(!showNotifications);
+            if (!showNotifications) markAllAsRead();
+          }}
+          className="w-8 h-8 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all relative shrink-0"
+        >
+          <Bell className="w-4 h-4" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-rose-500 rounded-full border border-[#13111C] animate-pulse"></span>
+          )}
+        </button>
+
+        {/* Floating Desktop Dropdown Menu relative to brand box */}
+        <AnimatePresence>
+          {showNotifications && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, x: -10 }}
+              animate={{ opacity: 1, scale: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.95, x: -10 }}
+              transition={{ duration: 0.2 }}
+              className="absolute left-[255px] top-4 w-80 bg-[#141121] border border-white/10 rounded-2xl p-4 shadow-2xl z-50 overflow-hidden text-left"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-3">
+                <div className="flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-[#D988A1]" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                    System Alerts
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowNotifications(false)}
+                  className="text-white/40 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                {notifications.map((alert) => (
+                  <div
+                    key={alert.id}
+                    className={`flex gap-2.5 p-2.5 rounded-xl transition-all ${
+                      alert.read ? "bg-white/[0.02]" : "bg-white/[0.06] border-l-2 border-[#D988A1]"
+                    }`}
+                  >
+                    <div className="mt-0.5 shrink-0">
+                      {alert.type === "warning" && <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />}
+                      {alert.type === "success" && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
+                      {alert.type === "info" && <Shield className="w-3.5 h-3.5 text-cyan-500" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] font-bold text-white leading-tight">
+                        {alert.title}
+                      </div>
+                      <div className="text-[10px] text-[#9E9AA7] mt-0.5 leading-snug font-normal">
+                        {alert.message}
+                      </div>
+                      <div className="text-[8px] text-white/30 font-mono mt-1">
+                        {alert.time}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-3 pt-3 border-t border-white/5 flex justify-end">
+                <button
+                  onClick={() => {
+                    setView("chat");
+                    setShowNotifications(false);
+                  }}
+                  className="text-[9px] text-[#D988A1] hover:underline uppercase tracking-widest font-bold font-mono"
+                >
+                  Consult CFO Terminal &rarr;
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Primary Links */}
@@ -81,26 +214,6 @@ export const Sidebar: React.FC<NavProps> = ({ currentView, setView, businessName
 
         {/* Deleted Marketing section to maintain strict scope discipline */}
       </nav>
-
-      {/* Theme Toggle section inside sidebar */}
-      <div className="px-6 py-4 border-t border-neutral-200/10 dark:border-neutral-800/60 flex items-center justify-between text-xs font-medium text-[#9E9AA7] bg-[#1F1D2B]/30">
-        <div className="flex items-center gap-2.5">
-          {theme === "dark" ? <Moon className="w-4 h-4 text-[#D988A1]" /> : <Sun className="w-4 h-4 text-[#D988A1]" />}
-          <span className="text-[11px] font-semibold">{theme === "dark" ? "Dark Mode" : "Light Mode"}</span>
-        </div>
-        <button
-          type="button"
-          id="sidebar-theme-toggle"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-neutral-800"
-          style={{ backgroundColor: theme === "dark" ? "#8A5A7B" : "#262626" }}
-        >
-          <span
-            className="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-            style={{ transform: theme === "dark" ? "translateX(16px)" : "translateX(0)" }}
-          />
-        </button>
-      </div>
 
       {/* User Footer block */}
       <div className="p-4 border-t border-neutral-200/10 dark:border-neutral-800/60 flex items-center justify-between gap-3 bg-[#1F1D2B]/50">
