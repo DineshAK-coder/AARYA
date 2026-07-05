@@ -93,36 +93,33 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.companyId]);
 
-  // Runway Calculation: Starting liquidity / simulated monthly burn rate
-  const simulatedMonthlyBurn = 150000; 
-  const runwayMonths = state.startingBalance > 0 
-    ? (state.startingBalance / simulatedMonthlyBurn).toFixed(1) 
+  // Runway Calculation: derived from live receivables / simulated monthly burn
+  const simulatedMonthlyBurn = 150000;
+  const runwayMonths = receivables > 0
+    ? (receivables / simulatedMonthlyBurn).toFixed(1)
     : "0.0";
 
-  const monthlyRevenue = state.invoices
-    .filter(inv => inv.status === "Paid" && (inv.date.includes("2026-06") || inv.date.includes("2026-05")))
-    .reduce((sum, inv) => sum + inv.amount, 0) || 1824530; // default value
-
-  // Simulated cash flow timeline for chart (4 weeks)
+  // Simulated cash flow timeline for chart (4 weeks) — uses live receivables
+  const chartBase = receivables > 0 ? receivables : 0;
   const chartData = [
-    { name: "Week 1", Balance: state.startingBalance * 0.72 },
-    { name: "Week 2", Balance: state.startingBalance * 0.88 },
-    { name: "Week 3", Balance: state.startingBalance * 0.79 },
-    { name: "Week 4", Balance: state.startingBalance },
+    { name: "Week 1", Balance: chartBase * 0.72 },
+    { name: "Week 2", Balance: chartBase * 0.88 },
+    { name: "Week 3", Balance: chartBase * 0.79 },
+    { name: "Week 4", Balance: chartBase },
   ];
 
-  // Invoice Breakdown for Pie Chart
+  // Invoice Breakdown for Pie Chart — no hardcoded fallbacks
   const invoicePaidTotal = state.invoices
     .filter(inv => inv.status === "Paid")
-    .reduce((sum, inv) => sum + inv.amount, 0) || 680000;
+    .reduce((sum, inv) => sum + inv.amount, 0);
 
   const invoicePendingTotal = state.invoices
     .filter(inv => inv.status === "Pending")
-    .reduce((sum, inv) => sum + inv.amount, 0) || 320000;
+    .reduce((sum, inv) => sum + inv.amount, 0);
 
   const invoiceOverdueTotal = state.invoices
     .filter(inv => inv.status === "Overdue")
-    .reduce((sum, inv) => sum + inv.amount, 0) || 150000;
+    .reduce((sum, inv) => sum + inv.amount, 0);
 
   const pieData = [
     { name: "Paid", value: invoicePaidTotal, color: "#D988A1" },
@@ -191,9 +188,11 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
             <div>
               <div className="text-3xl font-heading font-bold text-neutral-900 dark:text-white tracking-tight mt-1 tabular-nums">
-                {state.currencySymbol}{state.startingBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {financialsLoading
+                  ? <span className="inline-block h-8 w-40 bg-neutral-200 dark:bg-neutral-700/60 rounded-xl animate-pulse" />
+                  : <>{state.currencySymbol}{receivables.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>}
               </div>
-              <p className="text-[10px] text-neutral-400 dark:text-[#9E9AA7] mt-1 font-mono">Linked live ledger bank balance</p>
+              <p className="text-[10px] text-neutral-400 dark:text-[#9E9AA7] mt-1 font-mono">Total income transactions from database</p>
             </div>
             <button
               onClick={() => onAskNova("Give me advice on accelerating collections.")}
@@ -247,7 +246,10 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
           </div>
           <div className="mt-4">
             <div className="text-3xl font-heading font-bold text-neutral-900 dark:text-white tracking-tight tabular-nums text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
-              <span>+{state.currencySymbol}{(state.startingBalance * 0.28).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
+              {financialsLoading
+                ? <span className="inline-block h-9 w-32 bg-neutral-200 dark:bg-neutral-700/60 rounded-xl animate-pulse" />
+                : <span>{receivables - payables >= 0 ? "+" : ""}{state.currencySymbol}{Math.abs(receivables - payables).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
+              }
               <div className="relative group/tooltip inline-block cursor-pointer">
                 <Sparkles className="w-4 h-4 text-[#D988A1] opacity-75 hover:opacity-100 transition-all hover:scale-110" />
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-56 p-3 rounded-2xl text-[11px] font-sans leading-relaxed text-white/95 bg-[#08060c]/90 backdrop-blur-xl border border-white/10 shadow-2xl pointer-events-none opacity-0 group-hover/tooltip:opacity-100 transition-all duration-300 scale-95 group-hover/tooltip:scale-100 z-50 text-center">
@@ -256,7 +258,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
                     <Sparkles className="w-3.5 h-3.5 animate-pulse" />
                     <span>Explain Your Math</span>
                   </div>
-                  <span className="text-white/70 font-normal">Calculated as: <span className="font-mono text-emerald-400">Receivables (+{state.currencySymbol}1.2M) - Payables</span> over the past 30 days.</span>
+                  <span className="text-white/70 font-normal">Calculated as: <span className="font-mono text-emerald-400">Total Receivables − Total Payables</span> from your uploaded transactions.</span>
                 </div>
               </div>
             </div>

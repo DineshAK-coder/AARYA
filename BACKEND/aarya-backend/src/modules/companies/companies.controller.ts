@@ -111,6 +111,14 @@ export async function onboardNewUser(
     });
 
     if (error) {
+      // Postgres duplicate key (23505) means this user already has a company row
+      if (error.code === '23505' || error.message?.toLowerCase().includes('duplicate')) {
+        throw new AppError(
+          409,
+          'You already belong to a company. Each user can only be a member of one company.',
+          'ALREADY_HAS_COMPANY'
+        );
+      }
       throw new AppError(500, `Failed to create company: ${error.message}`, 'DB_ERROR');
     }
 

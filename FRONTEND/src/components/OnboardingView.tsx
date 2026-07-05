@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Sparkles, Building2, TrendingUp, DollarSign, Wallet, ArrowRight, ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
+import { Sparkles, Building2, Wallet, ArrowRight, ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { onboardCompany } from "../services/apiClient";
 
@@ -20,7 +20,6 @@ export const OnboardingView: React.FC<OnboardingProps> = ({ onComplete, defaultE
   const [businessName, setBusinessName] = useState("");
   const [industry, setIndustry] = useState("Software & SaaS");
   const [currency, setCurrency] = useState("INR (₹)");
-  const [startingBalance, setStartingBalance] = useState("");
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState("");
 
@@ -50,18 +49,17 @@ export const OnboardingView: React.FC<OnboardingProps> = ({ onComplete, defaultE
       if (!businessName.trim()) return;
       setStep(2);
     } else {
+      // Step 2: currency confirmed — call backend and complete onboarding
       const selectedCurr = currencies.find((c) => c.value === currency) || currencies[4]; // default INR
-      const parsedBalance = parseFloat(startingBalance) || 0;
       setApiError("");
       setLoading(true);
       try {
-        // ── Call POST /api/companies/onboard ─────────────────────────────────
         let companyId: string | undefined;
         try {
           const result = await onboardCompany({ name: businessName }) as any;
           companyId = result?.data?.id ?? result?.data?.company_id;
         } catch (err: any) {
-          // If the error is "already has company" we can still proceed
+          // If the error is "already has company" we can still proceed gracefully
           const msg: string = err?.message ?? "";
           if (!msg.includes("ALREADY_HAS_COMPANY") && !msg.includes("already belong")) {
             setApiError(
@@ -77,7 +75,7 @@ export const OnboardingView: React.FC<OnboardingProps> = ({ onComplete, defaultE
           industry,
           currency,
           currencySymbol: selectedCurr.symbol,
-          startingBalance: parsedBalance,
+          startingBalance: 0, // derived entirely from CSV uploads — not set manually
           companyId,
         });
       } finally {
@@ -89,8 +87,6 @@ export const OnboardingView: React.FC<OnboardingProps> = ({ onComplete, defaultE
   const handleBack = () => {
     if (step === 2) setStep(1);
   };
-
-  const currentSymbol = currencies.find((c) => c.value === currency)?.symbol || "$";
 
   return (
     <div id="onboarding-view-container" className="min-h-screen bg-[#EAE7E4] text-neutral-900 flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden">
@@ -124,7 +120,7 @@ export const OnboardingView: React.FC<OnboardingProps> = ({ onComplete, defaultE
             >
               <div>
                 <h2 className="font-heading font-bold text-2xl md:text-3xl text-[#141414] tracking-tight flex items-center gap-2.5">
-                  <Building2 className="w-6.5 h-6.5 text-[#141414]" />
+                  <Building2 className="w-6 h-6 text-[#141414]" />
                   <span>Your Business Identity</span>
                 </h2>
                 <p className="text-sm text-neutral-500 mt-2">
@@ -174,17 +170,17 @@ export const OnboardingView: React.FC<OnboardingProps> = ({ onComplete, defaultE
             >
               <div>
                 <h2 className="font-heading font-bold text-2xl md:text-3xl text-[#141414] tracking-tight flex items-center gap-2.5">
-                  <Wallet className="w-6.5 h-6.5 text-[#141414]" />
-                  <span>Financial Position</span>
+                  <Wallet className="w-6 h-6 text-[#141414]" />
+                  <span>Operational Currency</span>
                 </h2>
                 <p className="text-sm text-neutral-500 mt-2">
-                  Configure your starting liquidity. A.A.R.Y.A calculates your real-time cash flow and outstanding balances relative to this baseline.
+                  Select the currency your business operates in. A.A.R.Y.A will use this for all financial displays and calculations derived from your uploaded data.
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Operational Currency</label>
+                  <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Select Currency</label>
                   <select
                     id="onboarding-select-currency"
                     value={currency}
@@ -199,23 +195,12 @@ export const OnboardingView: React.FC<OnboardingProps> = ({ onComplete, defaultE
                   </select>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Starting Cash Position / Liquidity</label>
-                  <div className="relative">
-                    <div className="absolute left-4 top-3.5 text-neutral-400 font-bold font-mono">
-                      {currentSymbol}
-                    </div>
-                    <input
-                      type="number"
-                      required
-                      step="0.01"
-                      id="onboarding-input-balance"
-                      placeholder="0.00"
-                      value={startingBalance}
-                      onChange={(e) => setStartingBalance(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3.5 rounded-xl bg-white border border-neutral-200 text-neutral-900 text-sm outline-none focus:border-[#141414] focus:ring-1 focus:ring-[#141414]/20 placeholder:text-neutral-300 transition-all font-mono"
-                    />
-                  </div>
+                {/* Info notice replacing the balance input */}
+                <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 flex items-start gap-3">
+                  <Sparkles className="w-4 h-4 text-[#141414] shrink-0 mt-0.5" />
+                  <p className="text-xs text-neutral-500 leading-relaxed">
+                    Your financial position — cash flow, runway, receivables, and payables — will be calculated automatically once you upload your transaction data via the <span className="font-semibold text-[#141414]">Data Upload</span> screen.
+                  </p>
                 </div>
               </div>
             </motion.div>
@@ -251,7 +236,7 @@ export const OnboardingView: React.FC<OnboardingProps> = ({ onComplete, defaultE
             type="button"
             id="onboarding-next-btn"
             onClick={handleNext}
-            disabled={loading}
+            disabled={loading || (step === 1 && !businessName.trim())}
             className="flex items-center gap-2.5 px-6 py-3.5 rounded-xl bg-[#141414] text-[#FF3B30] hover:opacity-95 active:scale-[0.98] transition-all font-heading font-bold text-sm ml-auto shadow-md disabled:opacity-60"
           >
             {loading ? (
@@ -262,7 +247,7 @@ export const OnboardingView: React.FC<OnboardingProps> = ({ onComplete, defaultE
             ) : (
               <>
                 <span>{step === 1 ? "Next Step" : "Complete Setup"}</span>
-                <ArrowRight className="w-4.5 h-4.5" />
+                <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>

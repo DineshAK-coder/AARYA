@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { supabase } from "../services/apiClient";
 
 interface AuthProps {
-  onSuccess: (email: string) => void;
+  onSuccess: (email: string, authMode: "login" | "signup") => void;
   onBack: () => void;
   initialEmail: string;
 }
@@ -51,13 +51,13 @@ export const AuthView: React.FC<AuthProps> = ({ onSuccess, onBack, initialEmail 
         const { data, error: authErr } = await supabase.auth.signInWithPassword({ email, password });
         if (authErr) throw authErr;
         if (!data.session) throw new Error("No session returned from Supabase.");
-        onSuccess(email);
+        onSuccess(email, "login");
       } else {
         const { data, error: authErr } = await supabase.auth.signUp({ email, password });
         if (authErr) throw authErr;
         if (data.session) {
           // Auto-confirmed (e.g. email confirmation disabled in Supabase settings)
-          onSuccess(email);
+          onSuccess(email, "signup");
         } else {
           // Confirmation email sent
           setSuccessMsg(

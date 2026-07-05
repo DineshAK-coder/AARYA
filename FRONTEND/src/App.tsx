@@ -184,7 +184,7 @@ export default function App() {
     });
   };
 
-  const handleLoginSuccess = (email: string) => {
+  const handleLoginSuccess = (email: string, authMode: "login" | "signup") => {
     setState(prev => ({
       ...prev,
       loggedIn: true,
@@ -192,11 +192,13 @@ export default function App() {
     }));
     logActivity({
       actionType: "onboarding",
-      description: `Successful sign-in with client node: ${email}`,
+      description: `Successful ${authMode === "login" ? "sign-in" : "sign-up"} with client node: ${email}`,
       amount: 0
     });
 
-    if (state.onboarded) {
+    // Login → always go straight to dashboard (company already exists in DB)
+    // Signup → go to onboarding to create company profile
+    if (authMode === "login") {
       setView("dashboard");
     } else {
       setView("onboarding");
