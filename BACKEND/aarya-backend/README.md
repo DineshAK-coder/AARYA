@@ -5,100 +5,155 @@
 **India-First AI CFO Copilot for SMEs and Startups**
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React%2019-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev/)
 [![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Express.js](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
 [![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-8E75B2?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
+[![Google Gemini](https://img.shields.io/badge/Google%20Gemini%202.5%20Flash-8E75B2?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
 [![pgvector](https://img.shields.io/badge/pgvector-FF6F00?style=for-the-badge&logo=postgresql&logoColor=white)](https://github.com/pgvector/pgvector)
+[![Vite](https://img.shields.io/badge/Vite%206-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vite.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS%20v4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 
 ---
 
-*Turning messy financial spreadsheets, scattered invoices, and bank statements into clear, plain-English answers about cash flow, runway, dues, and business health.*
+> *"AARYA is an India-first AI CFO copilot for SMEs and startups that turns raw finance data into runway, yield, cash-flow, and decision insights in plain English."*
 
 </div>
 
 ---
 
-## 📖 1. Executive Summary & Problem Statement
+## 📖 1. Executive Summary
 
-Indian SMEs and startups often manage finance through disconnected spreadsheets, scattered invoices, bank statements, and manual follow-ups. Founders struggle to get quick, reliable answers to practical operational questions like:
-* *"How many months of cash runway do we have left at our current burn rate?"*
-* *"Which customers owe us money, and what are our immediate payables?"*
-* *"Can we afford to hire two new engineers next month?"*
+AARYA is an India-first AI CFO copilot designed for SMEs, startups, finance teams, and Chartered Accountants (CAs). It transforms messy financial data—such as spreadsheets, bank exports, and scattered invoices—into simple, actionable answers about cash flow, runway, dues, and overall business health. 
 
-While the financial data exists, **decision-ready insight does not**. Traditional accounting software merely records transactions, and static dashboards display numbers without context. Hiring full-time CFOs or virtual CFO services is expensive and human-dependent.
-
-### 🌟 The India-First Positioning
-AARYA is built specifically for how Indian businesses actually operate. It understands the nuances of **GST, TDS, UPI payments, bank transfers**, and local accounting practices. AARYA acts as a **financial decision engine**, bridging the gap between raw ledger data and executive decision-making — making CFO-level insights **faster, cheaper, and always available**.
+Built to begin as a high-impact 36-hour hackathon MVP, AARYA is architected from day one to scale into an enterprise-grade SaaS financial operating system.
 
 ---
 
-## 🏗️ 2. Backend Architecture & Key Innovations
+## 🚨 2. Problem Statement & Why It Matters
 
-This repository houses the enterprise-grade backend API built for AARYA. Designed for multi-tenancy, high security, and AI-native data processing, the architecture features four core pillars:
+### The Problem
+Indian SMEs and startups often manage their finance through disconnected spreadsheets, scattered PDF invoices, bank statements, and manual follow-ups. Founders do not get immediate answers to practical, mission-critical questions such as:
+* *"How many months of cash runway do we have left at our current burn rate?"*
+* *"Which clients owe us money, and what are our immediate vendor payables?"*
+* *"Can we safely afford to hire two new engineers next month?"*
+
+While transaction data exists in abundance, **decision-ready operational insight does not**. Traditional accounting software merely records historical transactions, while generic dashboards display static numbers without executive context. Hiring full-time CFOs or human-led virtual CFO services remains expensive, slow, and dependent on manual interpretation.
+
+### Why This Problem Matters in India
+The Indian market exhibits strong willingness to pay for virtual CFO services, finance automation, and real-time cash visibility tools. The operational pain is particularly acute in India because businesses operate within unique regulatory and financial workflows—relying heavily on **GST (Goods & Services Tax)**, **TDS (Tax Deducted at Source)**, **UPI payments**, **bank transfers**, and legacy accounting software that require human interpretation. This makes finance automation one of the strongest and most resilient SaaS wedges for an India-first startup.
+
+---
+
+## 🎯 3. Target Audience & Positioning
+
+### Primary Users
+* **Startup Founders & Co-founders**: Seeking immediate runway calculations, burn rate analysis, and hiring feasibility without waiting for month-end accounting reports.
+* **SME Business Owners**: Wanting real-time cash visibility, vendor payable tracking, and customer due collections.
+
+### Secondary Users
+* **Finance Managers & Internal Accountants**: Looking to automate ledger ingestion and reporting workflows.
+* **Chartered Accountants (CAs) & Fractional CFOs**: Managing multiple client portfolios and requiring an automated financial decision engine.
+
+### Ideal First Customer
+A growing Indian small business or seed-stage startup that already generates regular transaction data (CSV/Excel bank exports or invoice ledgers) but currently lacks real-time financial visibility and strategic cash forecasting.
+
+---
+
+## 💡 4. Product Vision & Differentiation
+
+AARYA is designed to feel like an **intelligent financial decision engine**, not just a generic chatbot. The long-term vision is to become the **finance command center** that ingests business data, interprets financial health in plain English, and proactively recommends growth and survival actions.
+
+| Feature | Generic Accounting Software | Generic AI Chatbots | **AARYA (AI CFO Copilot)** |
+| :--- | :--- | :--- | :--- |
+| **Data Handling** | Records raw transactions | Hallucinates without context | **Interprets ledgers via hybrid AI schema mapping** |
+| **Dashboards** | Displays static numbers | No graphical dashboards | **Interactive charts with CFO context & warnings** |
+| **Explainability** | Manual formula auditing | Black-box LLM text | **Full mathematical explainability & transaction citations** |
+| **Availability** | Requires human operator | General purpose | **Faster, cheaper, 24/7 specialized India-first finance brain** |
+| **Local Context** | Global generic formats | Lacks regional nuances | **Built for Indian workflows (GST, TDS, UPI, INR formatting)** |
+
+---
+
+## ⚡ 5. Core MVP Scope (36-Hour Hackathon Build)
+
+The hackathon MVP is small, highly visible, and demo-ready—proving that AARYA can turn raw financial spreadsheets into decision-support insights within minutes.
+
+### 🌟 Non-Negotiable MVP Features & Screens
+1. **🔐 Login / Project Landing Page**: Sleek onboarding workflow where founders register their company, set primary currencies (INR ₹ default), and tag industry categories.
+2. **📤 Hybrid Data Upload Screen (`/api/upload-transactions`)**: Multi-format CSV and Excel spreadsheet uploader equipped with zero-cost fuzzy matching (`Fuse.js`) and **Google Gemini 2.5 Flash** automated column classification.
+3. **📊 Executive Finance Dashboard**: A clean, glassmorphic dashboard showcasing real-time indicators:
+   * **Net Cash Flow & Liquidity**: Total cash inflows vs. operating expenses.
+   * **Runway Months**: Automatically derived from expense date spans and net liquidity.
+   * **Receivables & Payables Snapshot**: Total outstanding dues and urgent overdue vendor bills.
+4. **💬 Interactive AI CFO Chat Section**: A plain-English question-answer copilot powered by live backend database tools (`get_cash_flow`, `get_receivables_and_payables`, `generate_founder_summary`). Features full mathematical explainability, transaction citations, voice input, and error recovery reset controls.
+5. **📑 Founder Summary & Insights Report**: Automated intelligence brief highlighting **What is Good** (surpluses, growth), **What is Risky** (overdue payables, high burn), and **What Needs Attention**, paired with actionable strategic recommendations.
+
+---
+
+## 🏗️ 6. System Architecture & Data Flow
+
+AARYA operates as a decoupled full-stack application leveraging strict multi-tenancy, AI vector embeddings, and real-time database tools:
 
 ```mermaid
 graph TD
-    Client[Frontend / Client App] -->|Bearer JWT| Auth[Supabase Auth & RLS]
+    Client[React 19 / Vite Frontend] -->|Bearer JWT| Auth[Supabase Auth & RLS]
     Auth --> API[Express.js / TypeScript API]
     
     subgraph "Hybrid Ingestion Engine"
         API -->|POST /api/upload-transactions| Upload[Multer Memory Storage]
         Upload --> Parse[SheetJS CSV/Excel Parser]
-        Parse --> Check{mappings provided?}
+        Parse --> Check{Mappings Provided?}
         Check -->|Yes: Scenario A| Manual[Manual JSON Mapping]
         Check -->|No: Scenario B| Stage1[Stage 1: Fuse.js Fuzzy Match]
         Stage1 --> Conf{Confidence > 80%?}
         Conf -->|Yes| Insert[Batch Supabase Insert]
-        Conf -->|No| Stage2[Stage 2: Gemini 1.5 Flash LLM]
+        Conf -->|No| Stage2[Stage 2: Gemini 2.5 Flash LLM]
         Stage2 --> Insert
     end
     
-    subgraph "AI Memory Ledger"
+    subgraph "AI CFO Chat & Tools Engine"
+        API -->|POST /api/chat| Chat[Vercel AI SDK streamText]
+        Chat --> Tools[Backend Database Tools]
+        Tools --> Tool1[get_cash_flow]
+        Tools --> Tool2[get_receivables_and_payables]
+        Tools --> Tool3[generate_founder_summary]
+        Tool1 & Tool2 & Tool3 --> DB[(Supabase PostgreSQL)]
+    end
+    
+    subgraph "AI Decision Memory Ledger"
         API -->|POST /api/decisions| Embed[Google text-embedding-004]
         Embed --> VectorDB[(pgvector 768-dim Vector Store)]
         API -->|POST /api/decisions/search| VectorDB
     end
 ```
 
-### 🔒 1. Multi-Tenant PostgreSQL with Strict RLS
-* Every tenant (company) is completely isolated at the database level.
-* **Row Level Security (RLS)** is enforced on all tables (`companies`, `users`, `financial_transactions`, `financial_state_snapshots`, and `decision_memory_logs`).
-* Database queries automatically bind to `auth.uid()` via custom PostgreSQL helper functions (`get_my_company_id()`), guaranteeing zero data leakage across companies.
-
-### ⚡ 2. Hybrid Data Ingestion Service (`POST /api/upload-transactions`)
-SMEs upload raw CSV or Excel files with varying column header formats. Our hybrid ingestion pipeline normalizes them effortlessly:
-* **Scenario A (Manual Mapping)**: The request payload includes explicit JSON column mappings from the client.
-* **Scenario B (Two-Stage Auto-Detection Fallback)**:
-  * **Stage 1 (Zero-Cost Fuzzy Matching)**: Uses `Fuse.js` to evaluate uploaded headers against a dictionary of known financial synonyms (e.g., matching `"total_spend"`, `"dr"`, or `"outgoing"` to `amount`).
-  * **Stage 2 (LLM Fallback via Google Gemini)**: If required fields (`amount`, `transaction_type`, `due_date`) remain unmatched or fall below the confidence threshold, the backend samples the first 5 rows and invokes **Google Gemini 1.5 Flash** in structured JSON mode to dynamically classify and map the columns.
-
-### 🧠 3. AI Decision Memory Ledger (`pgvector` + Google Gemini)
-AARYA does not just answer questions; it remembers context and learns from founder actions:
-* Logs financial context, AI recommendations, and actual founder decisions.
-* Uses Google's **`text-embedding-004`** model to generate 768-dimensional semantic embeddings.
-* Leverages PostgreSQL's **`pgvector`** extension with IVFFlat indexing to perform real-time **cosine similarity searches** — retrieving historical precedents when founders face similar financial dilemmas.
+### Key Architectural Innovations
+* **Multi-Tenant PostgreSQL with Strict RLS**: Every company is isolated at the database level using Supabase Row Level Security (RLS). All queries automatically bind to `auth.uid()` via custom helper functions (`get_my_company_id()`), guaranteeing zero cross-company data leakage.
+* **Hybrid Data Ingestion Service**: When messy accounting exports are uploaded without column mappings, AARYA attempts zero-cost fuzzy matching (`Fuse.js`) against known financial synonyms. If confidence is low, it samples 5 rows and invokes **Google Gemini 2.5 Flash** in structured JSON mode to dynamically classify headers into our canonical schema (`amount`, `transaction_type`, `due_date`, `description`).
+* **Tool-First AI Math Explainability**: To eliminate LLM hallucination in financial calculations, AARYA's chat controller enforces backend tool execution. The tools return exact mathematical formulas (`calculation_explanation`) and top supporting transaction records (`supporting_transactions`), giving founders complete transparency into how numbers were derived.
+* **Semantic AI Decision Memory (`pgvector`)**: AARYA remembers context and learns from founder actions. It logs financial dilemmas, generates 768-dimensional embeddings using Google's `text-embedding-004`, and uses IVFFlat indexing in PostgreSQL to perform cosine similarity searches—retrieving historical precedents when founders face similar strategic decisions.
 
 ---
 
-## 🛠️ 3. Technology Stack
+## 🛠️ 7. Technology Stack
 
-| Component | Technology | Purpose |
+| Layer | Technology | Purpose |
 | :--- | :--- | :--- |
-| **Runtime & Language** | [Node.js](https://nodejs.org/) & [TypeScript](https://www.typescriptlang.org/) | Strict type safety, ES2022 modern syntax, high-performance async I/O |
-| **Web Framework** | [Express.js](https://expressjs.com/) | REST API routing, custom middleware architecture |
-| **Security & Logging** | [Helmet](https://helmetjs.github.io/) & [Morgan](https://github.com/expressjs/morgan) | HTTP header hardening and automated request logging |
-| **Database & Auth** | [Supabase](https://supabase.com/) (PostgreSQL 15+) | Managed Postgres, Row Level Security (RLS), Supabase Auth JWT verification |
-| **AI & Vector Engine** | [Google Gemini AI](https://ai.google.dev/) & `pgvector` | `gemini-1.5-flash` for schema mapping; `text-embedding-004` for 768-dim vector embeddings |
-| **File Processing** | [SheetJS (`xlsx`)](https://sheetjs.com/) & [Multer](https://github.com/expressjs/multer) | In-memory buffer parsing for CSV, XLS, and XLSX spreadsheets |
-| **Validation & Matching**| [Zod](https://zod.dev/) & [Fuse.js](https://www.fusejs.io/) | Runtime request schema validation and approximate string matching |
+| **Frontend Framework** | [React 19](https://react.dev/) & [Vite 6](https://vite.dev/) | High-performance single-page application with modern component architecture |
+| **Styling & UI** | [Tailwind CSS v4](https://tailwindcss.com/) & [Lucide React](https://lucide.dev/) | Responsive glassmorphic UI, dynamic animations, and curated financial iconography |
+| **Data Visualization** | [Recharts](https://recharts.org/) & [Motion](https://motion.dev/) | Interactive financial charts, runway projections, and smooth micro-animations |
+| **Backend API** | [Node.js](https://nodejs.org/) & [Express.js](https://expressjs.com/) | Robust REST API routing, custom middleware, and strict TypeScript compilation |
+| **Database & Auth** | [Supabase](https://supabase.com/) (PostgreSQL 15+) | Managed Postgres, strict Row Level Security (RLS), and JWT authentication |
+| **AI & Vector Engine** | [Google Gemini AI](https://ai.google.dev/) & `pgvector` | `gemini-2.5-flash` for chat & mapping; `text-embedding-004` for 768-dim vector embeddings |
+| **AI SDK** | [Vercel AI SDK](https://sdk.vercel.ai/) | `@ai-sdk/react` (`useChat`), `@ai-sdk/google`, and server-side tool orchestration |
+| **File Processing** | [SheetJS (`xlsx`)](https://sheetjs.com/) & [Multer](https://github.com/expressjs/multer) | In-memory buffer parsing for CSV, XLS, and XLSX accounting spreadsheets |
 
 ---
 
-## 🚀 4. Step-by-Step Setup Guide
+## 🚀 8. Step-by-Step Setup & Full-Stack Launcher
 
-Follow these instructions to set up the database and run the backend server locally within minutes.
+You can launch both the backend API and frontend application simultaneously on Windows using our automated boot script, or set them up manually.
 
 ### Prerequisites
 * **Node.js**: `v18.0.0` or higher ([Download Node.js](https://nodejs.org/))
@@ -110,101 +165,99 @@ Follow these instructions to set up the database and run the backend server loca
 ### Step 1: Clone the Repository & Install Dependencies
 
 ```bash
-# Clone the repository and checkout the backend branch
-git clone -b backend https://github.com/DineshAK-coder/AARYA.git
-cd AARYA/AARYA/aarya-backend
+# Clone the project repository
+git clone https://github.com/DineshAK-coder/AARYA.git
+cd AARYA
 
-# Install npm dependencies
+# Install backend dependencies
+cd BACKEND/aarya-backend
 npm install
+
+# Install frontend dependencies
+cd ../../FRONTEND
+npm install
+cd ..
 ```
 
 ---
 
 ### Step 2: Supabase Database Setup
 
-1. **Create a New Project**: In your Supabase dashboard, click **New Project**, select a region, set a secure database password, and wait ~2 minutes for provisioning.
+1. **Create a New Project**: In your Supabase dashboard, click **New Project**, select a region, set a database password, and wait ~2 minutes for provisioning.
 2. **Enable pgvector**:
-   * In the left sidebar, navigate to **Database → Extensions**.
+   * Navigate to **Database → Extensions** in the left sidebar.
    * Search for `vector` and toggle it **ON**.
 3. **Run the SQL Migration**:
-   * In the left sidebar, go to **SQL Editor** and click **New query**.
-   * Open the file located at [`migrations/001_initial_schema.sql`](./migrations/001_initial_schema.sql) in this repository.
-   * Copy and paste the entire SQL contents into the query editor and click **Run** (▶).
-   * *Verification*: Go to **Authentication → Policies** in your Supabase dashboard. You should see active Row Level Security policies across `companies`, `users`, `financial_transactions`, `financial_state_snapshots`, and `decision_memory_logs`.
+   * Go to **SQL Editor** and click **New query**.
+   * Open [`BACKEND/aarya-backend/migrations/001_initial_schema.sql`](file:///c:/takeover%20hackathon%20integration/AARYA/BACKEND/aarya-backend/migrations/001_initial_schema.sql), copy the entire SQL contents, paste into the query editor, and click **Run** (▶).
+   * *Verification*: Navigate to **Authentication → Policies** to confirm active RLS policies on `companies`, `users`, `financial_transactions`, `financial_state_snapshots`, and `decision_memory_logs`.
 
 ---
 
 ### Step 3: Configure Environment Variables
 
-Create a copy of `.env.example` named `.env` in the root of `AARYA/aarya-backend/`:
-
-```bash
-cp .env.example .env
-```
-
-Open `.env` and fill in your credentials:
-
+#### Backend Environment (`BACKEND/aarya-backend/.env`)
+Copy `.env.example` to `.env` inside `BACKEND/aarya-backend/`:
 ```env
-# ---- Supabase Credentials (From: Project Settings -> API) ----
+# Supabase Credentials (Project Settings -> API)
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsIn...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsIn... # WARNING: Keep secret! Bypasses RLS.
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsIn... # Server-side only! Bypasses RLS.
 
-# ---- Google Gemini AI (From: https://aistudio.google.com/app/apikey) ----
+# Google Gemini AI (https://aistudio.google.com/app/apikey)
 GEMINI_API_KEY=AIzaSy...
 
-# ---- Server Configuration ----
+# Server Configuration
 PORT=3001
 NODE_ENV=development
 MAX_FILE_SIZE_MB=10
 ```
 
----
-
-### Step 4: Start the Development Server
-
-```bash
-# Start the server in watch mode (auto-reloads on file edits)
-npm run dev
-```
-
-You should see the following console output:
-```text
-🚀 AARYA Backend running on http://localhost:3001
-   Environment : development
-   Health check: http://localhost:3001/health
+#### Frontend Environment (`FRONTEND/.env`)
+Copy `.env.example` to `.env` inside `FRONTEND/`:
+```env
+GEMINI_API_KEY=AIzaSy...
+APP_URL=http://localhost:5173
 ```
 
 ---
 
-## 📡 5. Comprehensive API Reference & cURL Examples
+### Step 4: Launch Full-Stack Application (Automated)
 
-All protected routes require a Supabase Auth JWT in the header:
+From the root directory of the repository, run the Windows PowerShell boot script:
+
+```powershell
+.\start.ps1
+```
+
+This will automatically launch:
+* **Backend API Server**: Running on `http://localhost:3001` (with watch mode hot-reloading).
+* **Frontend Web App**: Running on `http://localhost:5173` (interactive UI).
+
+> **Manual Start Alternative**:
+> In Terminal 1: `cd BACKEND/aarya-backend && npm run dev`  
+> In Terminal 2: `cd FRONTEND && npm run dev`
+
+---
+
+## 📡 9. Comprehensive API Reference & cURL Examples
+
+All protected backend API endpoints require a valid Supabase Auth JWT:
 `Authorization: Bearer <your_access_token>`
 
 ### 🌐 System & Auth Endpoints
-
 | Method | Endpoint | Description | Auth Required? |
 | :---: | :--- | :--- | :---: |
 | `GET` | `/health` | Server health check and uptime status | ❌ No |
 | `GET` | `/api/auth/me` | Get current authenticated user profile & company details | ✅ Yes |
 
-#### Example: Check Health
-```bash
-curl http://localhost:3001/health
-```
-
----
-
 ### 🏢 Company & Onboarding Endpoints
-
 | Method | Endpoint | Description | Auth Required? | Role Required |
 | :---: | :--- | :--- | :---: | :---: |
-| `POST` | `/api/companies/onboard` | Create a new company tenant (for newly registered founders) | ✅ Yes (JWT) | Any |
+| `POST` | `/api/companies/onboard` | Create a new company tenant (for newly registered founders) | ✅ Yes | Any |
 | `GET` | `/api/companies/me` | Retrieve current company profile & billing tier | ✅ Yes | Any |
 | `PATCH` | `/api/companies/me` | Update company name or subscription status | ✅ Yes | `owner` |
 | `GET` | `/api/companies/members` | List all team members belonging to the company | ✅ Yes | Any |
-| `POST` | `/api/companies/invite` | Send magic-link email invitation to join the team | ✅ Yes | `owner` / `admin` |
 
 #### Example: Onboard New Company
 ```bash
@@ -214,24 +267,13 @@ curl -X POST http://localhost:3001/api/companies/onboard \
   -d '{"name": "Acme Innovations Pvt Ltd"}'
 ```
 
----
-
 ### 📊 Financial Transactions & Hybrid Ingestion
-
 | Method | Endpoint | Description | Auth Required? |
 | :---: | :--- | :--- | :---: |
 | `POST` | `/api/upload-transactions` | **Hybrid Ingestion**: Upload CSV/Excel spreadsheets with optional mappings | ✅ Yes |
 | `GET` | `/api/transactions` | List ledger transactions with pagination, date, and type filters | ✅ Yes |
 
-#### Scenario A: Upload CSV with Manual Column Mapping
-```bash
-curl -X POST http://localhost:3001/api/upload-transactions \
-  -H "Authorization: Bearer <your_token>" \
-  -F "file=@/path/to/bank_statement.csv" \
-  -F 'column_mappings={"amount":"Total Spent","transaction_type":"Tx Type","due_date":"Date","description":"Memo"}'
-```
-
-#### Scenario B: Upload Excel Spreadsheet (Auto-Detection via Gemini / Fuse.js)
+#### Example: Upload Excel Spreadsheet (Auto-Detection via Gemini 2.5 Flash / Fuse.js)
 ```bash
 curl -X POST http://localhost:3001/api/upload-transactions \
   -H "Authorization: Bearer <your_token>" \
@@ -255,27 +297,12 @@ curl -X POST http://localhost:3001/api/upload-transactions \
 }
 ```
 
----
-
-### 📈 Financial Health Snapshots
-
-| Method | Endpoint | Description | Auth Required? | Role Required |
-| :---: | :--- | :--- | :---: | :---: |
-| `GET` | `/api/snapshots` | Retrieve periodic financial health summaries (paginated) | ✅ Yes | Any |
-| `POST` | `/api/snapshots` | Generate and save a new AI health snapshot (runway, net cash flow) | ✅ Yes | `owner` / `admin` |
-
-#### Example: Create Health Snapshot
-```bash
-curl -X POST http://localhost:3001/api/snapshots \
-  -H "Authorization: Bearer <your_token>" \
-  -H "Content-Type: application/json" \
-  -d '{"runway_months": 14.5, "net_cash_flow": 250000.00, "snapshot_date": "2026-07-01"}'
-```
-
----
+### 💬 AI CFO Chat & Tools Orchestration
+| Method | Endpoint | Description | Auth Required? |
+| :---: | :--- | :--- | :---: |
+| `POST` | `/api/chat` | Vercel AI SDK streaming endpoint executing live DB financial tools | ✅ Yes |
 
 ### 🧠 AI Decision Memory Ledger (`pgvector`)
-
 | Method | Endpoint | Description | Auth Required? |
 | :---: | :--- | :--- | :---: |
 | `GET` | `/api/decisions` | List historical AI decision logs | ✅ Yes |
@@ -293,22 +320,29 @@ curl -X POST http://localhost:3001/api/decisions/search \
 
 ---
 
-## 🔮 6. Future Roadmap (Post-Hackathon Vision)
+## 🔮 10. Future Roadmap (Post-Hackathon Vision)
 
-As AARYA evolves from a 36-hour hackathon MVP into a full-scale SaaS financial operating system, our development roadmap includes:
+As AARYA evolves from a 36-hour hackathon MVP into a comprehensive finance operating system, our long-term roadmap includes:
 
-- [ ] **Native Indian Accounting Integrations**: Direct sync with **Tally Prime**, **Zoho Books**, and **QuickBooks India**.
-- [ ] **Automated Bank & UPI Reconciliation**: Direct bank statement parsing, UPI reference matching, and payment gateway (Razorpay / Cashfree) fee reconciliation.
-- [ ] **Compliance & Tax Reminders**: Automated alerts and runway adjustments for upcoming **GST (GSTR-1, GSTR-3B)**, **TDS**, and advance tax filing deadlines.
+- [ ] **Native Indian Accounting Integrations**: Direct API synchronization with **Tally Prime**, **Zoho Books**, and **QuickBooks India**.
+- [ ] **Automated Bank & UPI Reconciliation**: Direct bank statement parsing, UPI reference matching, and payment gateway (Razorpay / Cashfree) fee auto-reconciliation.
+- [ ] **Compliance & Tax Reminders**: Automated alerts and cash runway adjustments for upcoming **GST (GSTR-1, GSTR-3B)**, **TDS**, and advance tax filing deadlines.
 - [ ] **Automated Collection Nudges**: Smart, AI-drafted payment reminders sent via **WhatsApp** and email for overdue accounts receivable.
-- [ ] **Scenario Planning & Board Decks**: Interactive sensitivity analysis (*"What if churn increases by 2%?"*) and one-click PDF generation for investor updates and board presentations.
+- [ ] **Scenario Planning & Board Decks**: Interactive sensitivity analysis (*"What if customer churn increases by 2%?"*) and one-click PDF generation for investor updates and board presentations.
 - [ ] **Multi-Client Portal for CAs**: Dedicated dashboard view allowing Chartered Accountants and fractional CFOs to manage dozens of SME clients seamlessly from a single login.
 
 ---
 
-## 👥 7. Contributing & License
+## 💼 11. Business Model & Verdict
 
-Built with ❤️ for Indian founders and SMEs. This project is open-sourced under the MIT License.
+* **SaaS Subscription**: AARYA will operate on a SaaS subscription product model starting with free or low-cost pilot access during the hackathon/seed phase, later scaling to tiered pricing based on business size, user count, and advanced automation modules.
+* **Final Verdict**: Built to be an indispensable **finance decision copilot** with an India-first wedge—keeping the MVP simple, visible, and immediately useful for founders.
+
+---
+
+## 👥 12. Contributing & License
+
+Built with ❤️ for Indian founders and SMEs. Open-sourced under the **MIT License**.
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
@@ -317,6 +351,7 @@ Built with ❤️ for Indian founders and SMEs. This project is open-sourced und
 5. Open a Pull Request
 
 ---
+
 <div align="center">
 <b>AARYA</b> — The Finance Brain for India's Next Generation of Entrepreneurs.
 </div>
