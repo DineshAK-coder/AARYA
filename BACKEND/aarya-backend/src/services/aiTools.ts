@@ -1,13 +1,13 @@
-import { tool, zodSchema } from 'ai';
-import { z } from 'zod';
+import { tool } from 'ai';
+import { z } from 'zod/v3';
 import { supabaseAdmin } from '../config/supabase';
 
 export const getTools = (companyId: string) => ({
   get_cash_visibility: tool({
     description: 'Queries the database to calculate current total liquidity, cash-in, cash-out, and calculates runway based on burn rate.',
-    parameters: zodSchema(z.object({
-      monthly_burn_rate: z.number().optional().default(150000).describe('The simulated monthly burn rate of the company in base currency.'),
-    })),
+    inputSchema: z.object({
+      monthly_burn_rate: z.number().describe('The estimated monthly burn rate to calculate runway'),
+    }),
     execute: async ({ monthly_burn_rate }: { monthly_burn_rate: number }) => {
       try {
         const { data, error } = await supabaseAdmin
@@ -45,7 +45,7 @@ export const getTools = (companyId: string) => ({
   }),
   get_receivables_and_payables: tool({
     description: 'Queries the database to list pending customer payments (receivables) and outstanding liabilities/bills (payables).',
-    parameters: zodSchema(z.object({})),
+    inputSchema: z.object({}),
     execute: async () => {
       try {
         const { data, error } = await supabaseAdmin
@@ -90,7 +90,7 @@ export const getTools = (companyId: string) => ({
   }),
   generate_founder_summary: tool({
     description: 'Analyzes the recent transactions to generate a brief summary of "What is good, what is risky, and what needs attention."',
-    parameters: zodSchema(z.object({})),
+    inputSchema: z.object({}),
     execute: async () => {
       try {
         const { data, error } = await supabaseAdmin
