@@ -23,22 +23,10 @@ const app = express();
 // Helmet sets secure HTTP headers
 app.use(helmet());
 
-// CORS configuration for local development, production frontend, and preview deployments
+// Universal CORS configuration (reflects request origin dynamically with credentials support)
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (
-        origin === 'http://localhost:3000' ||
-        origin === 'https://aarya-frontend.vercel.app' ||
-        origin.endsWith('.vercel.app')
-      ) {
-        return callback(null, true);
-      }
-      callback(new Error('Not allowed by CORS'));
-    },
-    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    origin: true,
     credentials: true,
   })
 );
