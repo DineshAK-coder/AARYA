@@ -1,6 +1,12 @@
 import { Response } from 'express';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { streamText, stepCountIs } from 'ai';
+import {
+  streamText,
+  stepCountIs,
+  convertToModelMessages,
+  toUIMessageStream,
+  pipeUIMessageStreamToResponse
+} from 'ai';
 import { AuthenticatedRequest } from '../../types';
 import { getTools } from '../../services/aiTools';
 
@@ -23,6 +29,11 @@ export async function handleChat(req: AuthenticatedRequest, res: Response): Prom
       return;
     }
 
+    const tools = getTools(companyId);
+
+    // Convert the UI messages (sent by frontend useChat hook) to ModelMessages expected by streamText
+    const modelMessages = await convertToModelMessages(messages, { tools });
+
     // Set headers for streaming text response
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Transfer-Encoding', 'chunked');
@@ -38,13 +49,22 @@ You have access to real-time tools to fetch the company's financials from the da
 - generate_founder_summary: Summarizes highlights, risks, and attention items.
 
 Always fetch data using the tools when asked about financial state, dues, ledger, cash flow, burn rate, or business health. Do not hallucinate metrics.`,
-      messages,
-      tools: getTools(companyId),
+      messages: modelMessages,
+      tools,
       stopWhen: stepCountIs(5), // limit the maximum tool steps in this version of the SDK
     });
 
-    // Stream the text directly to the response
-    result.pipeTextStreamToResponse(res);
+    // Transform streamText parts into UIMessageChunks stream as expected by TextStreamChatTransport
+    const uiMessageStream = toUIMessageStream({
+      stream: result.stream,
+      tools,
+    });
+
+    // Pipe the UI message stream directly to the Express response
+    pipeUIMessageStreamToResponse({
+      response: res,
+      stream: uiMessageStream,
+    });
   } catch (err: any) {
     console.error('[ChatController] Error:', err);
     if (!res.headersSent) {
