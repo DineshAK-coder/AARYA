@@ -4,6 +4,9 @@
 
 **India-First AI CFO Copilot for SMEs and Startups**
 
+### 🌐 [**👉 Experience Live Demo on Vercel 👈**](https://aarya-frontend.vercel.app/) 🚀
+
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-https%3A%2F%2Faarya--frontend.vercel.app%2F-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://aarya-frontend.vercel.app/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React%2019-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev/)
 [![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
