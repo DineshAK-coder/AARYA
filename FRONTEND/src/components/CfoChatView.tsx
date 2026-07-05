@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Sparkles, Send, Bot, User, HelpCircle, Loader2, Mic } from "lucide-react";
 import { BusinessState } from "../types";
 import { useChat } from "@ai-sdk/react";
-import { TextStreamChatTransport } from "ai";
+import { DefaultChatTransport } from "ai";
 import { supabase } from "../services/apiClient";
 
 interface CfoChatProps {
@@ -30,7 +30,7 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
     status,
     setMessages,
   } = useChat({
-    transport: new TextStreamChatTransport({
+    transport: new DefaultChatTransport({
       api: `${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001"}/api/chat`,
       headers: async () => {
         if (!supabase) return {};

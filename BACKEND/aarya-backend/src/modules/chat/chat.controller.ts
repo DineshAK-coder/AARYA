@@ -34,12 +34,8 @@ export async function handleChat(req: AuthenticatedRequest, res: Response): Prom
     // Convert the UI messages (sent by frontend useChat hook) to ModelMessages expected by streamText
     const modelMessages = await convertToModelMessages(messages, { tools });
 
-    // Set headers for streaming text response
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Transfer-Encoding', 'chunked');
-
     const result = streamText({
-      model: googleProvider('gemini-1.5-flash'),
+      model: googleProvider('gemini-2.5-flash'),
       system: `You are AARYA, an India-first AI CFO copilot for SMEs and startups. 
 You provide clear, founder-friendly financial decision insights in plain English. 
 Do not use generic chatbot filler. Keep answers concise, highly analytical, and strategic.
@@ -54,10 +50,14 @@ Always fetch data using the tools when asked about financial state, dues, ledger
       stopWhen: stepCountIs(5), // limit the maximum tool steps in this version of the SDK
     });
 
-    // Transform streamText parts into UIMessageChunks stream as expected by TextStreamChatTransport
+    // Transform streamText parts into UIMessageChunks stream as expected by DefaultChatTransport
     const uiMessageStream = toUIMessageStream({
       stream: result.stream,
       tools,
+      onError: (err: unknown) => {
+        console.error('[toUIMessageStream] Streaming Error:', err);
+        return err instanceof Error ? err.message : String(err);
+      },
     });
 
     // Pipe the UI message stream directly to the Express response
