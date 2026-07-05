@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Sparkles, Send, Bot, User, HelpCircle, Loader2, Mic } from "lucide-react";
+import { Sparkles, Send, Bot, User, HelpCircle, Loader2, Mic, AlertCircle, RefreshCw } from "lucide-react";
 import { BusinessState } from "../types";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
@@ -29,6 +29,7 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
     sendMessage,
     status,
     setMessages,
+    error,
   } = useChat({
     transport: new DefaultChatTransport({
       api: `${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001"}/api/chat`,
@@ -205,6 +206,30 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
               <div className="bg-white dark:bg-[#1F1D2B] border border-neutral-200 dark:border-neutral-800/60 rounded-[20px] p-3 flex items-center gap-2 shadow-xs max-w-xs">
                 <Loader2 className="w-3.5 h-3.5 text-[#D988A1] animate-spin" />
                 <span className="text-[10px] text-neutral-500 dark:text-[#9E9AA7] font-mono">AARYA is parsing tax ledgers...</span>
+              </div>
+            </div>
+          )}
+
+          {/* Error display */}
+          {(error || status === "error") && (
+            <div className="flex items-start gap-2.5 mr-auto">
+              <div className="w-7 h-7 rounded-lg bg-red-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-red-500/20">
+                <AlertCircle className="w-3.5 h-3.5 animate-pulse" />
+              </div>
+              <div className="bg-red-50 dark:bg-[#1F1D2B] border border-red-200 dark:border-red-500/30 rounded-[20px] p-3.5 flex flex-col gap-2 shadow-sm max-w-md text-red-600 dark:text-red-400">
+                <div className="text-xs font-bold flex items-center gap-1.5">
+                  <span>Connection or Timeout Issue</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-neutral-600 dark:text-[#9E9AA7]">
+                  {error ? (error.message || String(error)) : "AARYA encountered a network timeout or connection failure while analyzing financials."}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  className="self-start mt-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[10px] rounded-xl transition-all font-medium flex items-center gap-1.5 shadow-xs"
+                >
+                  <RefreshCw className="w-3 h-3" /> Reset Session & Try Again
+                </button>
               </div>
             </div>
           )}

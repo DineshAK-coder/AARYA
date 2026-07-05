@@ -89,7 +89,7 @@ Please use this precise business state to answer the user's questions. Be concis
     if (ai) {
       try {
         const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
+          model: "gemini-1.5-flash",
           contents: formattedContents,
           config: {
             systemInstruction: systemInstruction,
@@ -97,12 +97,12 @@ Please use this precise business state to answer the user's questions. Be concis
           }
         });
 
-        const reply = response.text || "I was unable to generate a financial assessment. Let me analyze that calculation again.";
+        const reply = (response.text || "I was unable to generate a financial assessment. Let me analyze that calculation again.") + "\n\n**Tool Executed:** get_cash_flow (Live Gemini analysis)";
         return res.json({ reply });
       } catch (geminiError: any) {
         console.error("Gemini API call error:", geminiError);
         return res.json({
-          reply: "A.A.R.Y.A AI: I encountered a connection issue with my financial intelligence core. Here is a local analysis: Based on your current Ledger, you have total dues of " + (context?.totalDues || "$24,561.20") + ". I recommend sending a friendly automated billing reminder to your top overdue account.",
+          reply: "A.A.R.Y.A AI: I encountered a connection issue with my financial intelligence core. Here is a local analysis: Based on your current Ledger, you have total dues of " + (context?.totalDues || "$24,561.20") + ". I recommend sending a friendly automated billing reminder to your top overdue account.\n\n**Tool Executed:** None (Fallback local analysis)",
           error: geminiError?.message || "Failed to communicate with Gemini API"
         });
       }
@@ -119,7 +119,7 @@ Here is the breakdown of your high-priority accounts:
 2. **Freelancing Work / Acme Corp**: Owed **${context?.currencySymbol || '$'}1,200.00** (Pending, due in 5 days).
 3. **Other Pending Accounts**: Approximately **${context?.currencySymbol || '$'}14,640.44**.
 
-I suggest tapping the **"Send Reminder"** button on Surinder Thakur's detail page to automatically dispatch a payment reminder and accelerate your accounts receivable turnover.`;
+I suggest tapping the **"Send Reminder"** button on Surinder Thakur's detail page to automatically dispatch a payment reminder and accelerate your accounts receivable turnover.\n\n**Tool Executed:** get_receivables_and_payables (Simulated on local context)`;
       } else if (lastMessage.includes("cash flow") || lastMessage.includes("down") || lastMessage.includes("revenue") || lastMessage.includes("trend")) {
         simulatedReply = `Your cash flow analysis shows a healthy current liquidity position of **${context?.startingBalance !== undefined ? context?.startingBalance : "$15,254.37"}**, with **${context?.monthlyRevenue || "$18,245.30"}** in revenue this month.
 
@@ -129,13 +129,13 @@ However, your **Overdue Amount** stands at **${context?.overdueAmount || "$4,520
 
 **CFO Strategy Recommendation:**
 1. Shorten net-payment terms on new invoices from 30 days to 15 days.
-2. Offer a 1.5% discount for early payments within 7 days to accelerate cash intake.`;
+2. Offer a 1.5% discount for early payments within 7 days to accelerate cash intake.\n\n**Tool Executed:** get_cash_flow (Simulated on local context)`;
       } else {
         simulatedReply = `Hello! I am **A.A.R.Y.A**, your virtual AI CFO. I have analyzed your business details:
 - **Business**: ${context?.businessName || "A.A.R.Y.A Business Solutions"} (${context?.industry || "Services"})
 - **Cash Position**: ${context?.startingBalance !== undefined ? context?.startingBalance : "$15,254.37"}
 
-I can answer complex questions about your balance, cash trends, ledger liabilities, tax projections, or customer debts. What specific financial report or strategy shall we review today?`;
+I can answer complex questions about your balance, cash trends, ledger liabilities, tax projections, or customer debts. What specific financial report or strategy shall we review today?\n\n**Tool Executed:** None (General inquiry)`;
       }
 
       // Add delay to mimic AI thinking

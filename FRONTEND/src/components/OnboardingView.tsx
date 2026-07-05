@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Sparkles, Building2, Wallet, ArrowRight, ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { onboardCompany } from "../services/apiClient";
+import { onboardCompany, supabase } from "../services/apiClient";
 
 interface OnboardingProps {
   onComplete: (data: {
@@ -67,6 +67,53 @@ export const OnboardingView: React.FC<OnboardingProps> = ({ onComplete, defaultE
             );
             setLoading(false);
             return;
+          }
+        }
+
+        // Verify and ensure successful DB insertion into companies table and public.users table linking auth ID
+        if (supabase) {
+          try {
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            if (authUser) {
+              const { data: existingUser } = await supabase
+                .from("users")
+                .select("id, company_id")
+                .eq("id", authUser.id)
+                .maybeSingle();
+
+              if (!existingUser || !existingUser.company_id) {
+                if (!companyId) {
+                  const { data: newComp, error: compErr } = await supabase
+                    .from("companies")
+                    .insert({ name: businessName })
+                    .select("id")
+                    .single();
+
+                  if (!compErr && newComp) {
+                    companyId = newComp.id;
+                  } else {
+                    console.error("Error inserting into companies table:", compErr);
+                  }
+                }
+
+                if (companyId) {
+                  const { error: userErr } = await supabase
+                    .from("users")
+                    .upsert({
+                      id: authUser.id,
+                      company_id: companyId,
+                      role: "owner"
+                    });
+                  if (userErr) {
+                    console.error("Error inserting into public users table:", userErr);
+                  }
+                }
+              } else if (!companyId) {
+                companyId = existingUser.company_id;
+              }
+            }
+          } catch (dbErr) {
+            console.error("Onboarding DB verification/insertion error:", dbErr);
           }
         }
 

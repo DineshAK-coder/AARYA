@@ -45,6 +45,50 @@ export default function App() {
     localStorage.setItem("aarya_business_state", JSON.stringify(state));
   }, [state]);
 
+  // ── Public Profile Check & Strict Routing ────────────────────────────────
+  // Do not rely solely on supabase.auth.getSession(). After confirming a session exists,
+  // explicitly query the public users table for the matching user_id.
+  const checkUserProfileAndRoute = async (user: any) => {
+    if (!supabase || !user) return;
+    try {
+      const { data: dbUser } = await supabase
+        .from("users")
+        .select("id, company_id, role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (dbUser && dbUser.company_id) {
+        // Both session and public users row exist: allow access to /dashboard
+        setState(prev => ({
+          ...prev,
+          loggedIn: true,
+          userEmail: user.email ?? prev.userEmail,
+          companyId: dbUser.company_id,
+          onboarded: true,
+        }));
+        setView(prev => (prev === "landing" || prev === "auth" || prev === "onboarding" ? "dashboard" : prev));
+      } else {
+        // Auth session exists but public users row does NOT exist: force redirect to /onboarding
+        setState(prev => ({
+          ...prev,
+          loggedIn: true,
+          userEmail: user.email ?? prev.userEmail,
+          onboarded: false,
+        }));
+        setView("onboarding");
+      }
+    } catch (err) {
+      console.error("Error checking user profile in public.users:", err);
+      setState(prev => ({
+        ...prev,
+        loggedIn: true,
+        userEmail: user.email ?? prev.userEmail,
+        onboarded: false,
+      }));
+      setView("onboarding");
+    }
+  };
+
   // ── Restore Supabase session on mount ──────────────────────────────────────
   // Also subscribe to auth events so any sign-in / sign-out / token refresh
   // automatically keeps the UI in sync without page reload.
@@ -54,17 +98,7 @@ export default function App() {
     // Restore existing session (e.g. after page refresh)
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        const email = session.user.email ?? "";
-        setState(prev => ({
-          ...prev,
-          loggedIn: true,
-          userEmail: email,
-        }));
-        // Decide which view to land on
-        setView(prev => {
-          const s = JSON.parse(localStorage.getItem("aarya_business_state") || "{}");
-          return s?.onboarded ? "dashboard" : "onboarding";
-        });
+        checkUserProfileAndRoute(session.user);
       }
     });
 
@@ -72,11 +106,7 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         if (session?.user) {
-          setState(prev => ({
-            ...prev,
-            loggedIn: true,
-            userEmail: session.user.email ?? prev.userEmail,
-          }));
+          checkUserProfileAndRoute(session.user);
         } else {
           // Signed out — reset to clean state
           setState({ ...initialBusinessState });
@@ -197,12 +227,21 @@ export default function App() {
       amount: 0
     });
 
-    // Login → always go straight to dashboard (company already exists in DB)
-    // Signup → go to onboarding to create company profile
-    if (authMode === "login") {
-      setView("dashboard");
+    // Verify user profile in public.users table before routing
+    if (supabase) {
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user) {
+          checkUserProfileAndRoute(user);
+        } else {
+          setView("onboarding");
+        }
+      });
     } else {
-      setView("onboarding");
+      if (authMode === "login") {
+        setView("dashboard");
+      } else {
+        setView("onboarding");
+      }
     }
   };
 
@@ -283,6 +322,17 @@ export default function App() {
   }
 
   if (currentView === "onboarding") {
+    return (
+      <OnboardingView 
+        defaultEmail={state.userEmail || ""}
+        onComplete={handleOnboardingComplete}
+      />
+    );
+  }
+
+  // Enforce Strict Routing:
+  // If user is logged in (auth session exists) but not onboarded (no public users row), force redirect to onboarding view
+  if (state.loggedIn && !state.onboarded) {
     return (
       <OnboardingView 
         defaultEmail={state.userEmail || ""}
