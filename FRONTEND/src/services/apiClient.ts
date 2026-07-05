@@ -182,9 +182,10 @@ export const uploadTransactions = (
 export const getTransactions = (params?: {
   page?: number;
   limit?: number;
+  offset?: number;
   start_date?: string;
   end_date?: string;
-  type?: string;
+  transaction_type?: 'income' | 'expense' | 'transfer';
 }) => {
   const qs = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
   return request<unknown>('GET', `/api/transactions${qs}`);

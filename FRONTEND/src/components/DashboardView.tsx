@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   ArrowUpRight, 
   ArrowDownRight, 
@@ -28,6 +28,7 @@ import {
   Pie
 } from "recharts";
 import { BusinessState, LedgerItem, Invoice, Activity } from "../types";
+import { getTransactions } from "../services/apiClient";
 
 interface DashboardProps {
   state: BusinessState;
@@ -47,14 +48,50 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
     setPrompt("");
   };
 
-  // Calculations for KPI numbers based on state ledger and invoices
-  const receivables = state.ledger
+  // ── Payables & Receivables from Backend ────────────────────────────────────
+  // Derived from ledger as fallback, replaced with real API values once loaded
+  const ledgerReceivables = state.ledger
     .filter(item => item.amount > 0)
     .reduce((sum, item) => sum + item.amount, 0);
 
-  const payables = state.ledger
+  const ledgerPayables = state.ledger
     .filter(item => item.amount < 0)
     .reduce((sum, item) => sum + Math.abs(item.amount), 0);
+
+  const [receivables, setReceivables] = useState<number>(ledgerReceivables);
+  const [payables, setPayables] = useState<number>(ledgerPayables);
+  const [financialsLoading, setFinancialsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchFinancials() {
+      setFinancialsLoading(true);
+      try {
+        const [incomeRes, expenseRes] = await Promise.all([
+          getTransactions({ transaction_type: "income", limit: 500 }) as Promise<any>,
+          getTransactions({ transaction_type: "expense", limit: 500 }) as Promise<any>,
+        ]);
+        if (cancelled) return;
+        const incomeTotal = (incomeRes?.data?.data ?? []).reduce(
+          (sum: number, tx: any) => sum + Math.abs(Number(tx.amount) || 0), 0
+        );
+        const expenseTotal = (expenseRes?.data?.data ?? []).reduce(
+          (sum: number, tx: any) => sum + Math.abs(Number(tx.amount) || 0), 0
+        );
+        setReceivables(incomeTotal > 0 ? incomeTotal : ledgerReceivables);
+        setPayables(expenseTotal > 0 ? expenseTotal : ledgerPayables);
+      } catch (err) {
+        console.warn("[Dashboard] Could not fetch financials from API, using ledger fallback:", err);
+        setReceivables(ledgerReceivables);
+        setPayables(ledgerPayables);
+      } finally {
+        if (!cancelled) setFinancialsLoading(false);
+      }
+    }
+    fetchFinancials();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.companyId]);
 
   // Runway Calculation: Starting liquidity / simulated monthly burn rate
   const simulatedMonthlyBurn = 150000; 
@@ -238,11 +275,16 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
             </div>
           </div>
           <div className="mt-4">
-            <div className="text-3xl font-heading font-bold text-neutral-900 dark:text-white tracking-tight tabular-nums">
-              {state.currencySymbol}{receivables.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-            </div>
-            <div className="text-[10px] text-neutral-400 dark:text-[#9E9AA7] mt-1 font-mono">
+            {financialsLoading ? (
+              <div className="h-9 w-36 bg-neutral-200 dark:bg-neutral-700/60 rounded-xl animate-pulse" />
+            ) : (
+              <div className="text-3xl font-heading font-bold text-neutral-900 dark:text-white tracking-tight tabular-nums">
+                {state.currencySymbol}{receivables.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+              </div>
+            )}
+            <div className="text-[10px] text-neutral-400 dark:text-[#9E9AA7] mt-1 font-mono flex items-center gap-1.5">
               Pending customer payments
+              {!financialsLoading && <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="Live from database" />}
             </div>
           </div>
         </div>
@@ -256,11 +298,16 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
             </div>
           </div>
           <div className="mt-4">
-            <div className="text-3xl font-heading font-bold text-neutral-900 dark:text-white tracking-tight tabular-nums">
-              {state.currencySymbol}{payables.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-            </div>
-            <div className="text-[10px] text-neutral-400 dark:text-[#9E9AA7] mt-1 font-mono">
+            {financialsLoading ? (
+              <div className="h-9 w-36 bg-neutral-200 dark:bg-neutral-700/60 rounded-xl animate-pulse" />
+            ) : (
+              <div className="text-3xl font-heading font-bold text-neutral-900 dark:text-white tracking-tight tabular-nums">
+                {state.currencySymbol}{payables.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+              </div>
+            )}
+            <div className="text-[10px] text-neutral-400 dark:text-[#9E9AA7] mt-1 font-mono flex items-center gap-1.5">
               Outstanding liabilities
+              {!financialsLoading && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#D988A1] animate-pulse" title="Live from database" />}
             </div>
           </div>
         </div>

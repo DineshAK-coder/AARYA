@@ -38,17 +38,6 @@ export default function App() {
 
   const [currentView, setView] = useState<ViewType>("landing");
   const [quickCustomerName, setQuickCustomerName] = useState<string>("");
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    try {
-      const storedTheme = localStorage.getItem("nova_cfo_theme");
-      if (storedTheme === "dark" || storedTheme === "light") {
-        return storedTheme;
-      }
-    } catch (e) {
-      console.error("Failed to parse cached theme state:", e);
-    }
-    return "dark";
-  });
 
   // ── Persist state to localStorage ─────────────────────────────────────────
   useEffect(() => {
@@ -98,15 +87,10 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Handle theme class on document element
+  // Always keep dark mode active
   useEffect(() => {
-    localStorage.setItem("nova_cfo_theme", theme);
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [theme]);
+    document.documentElement.classList.add("dark");
+  }, []);
 
   // Global action controllers
   const logActivity = (act: Omit<Activity, "id" | "timestamp">) => {
@@ -361,8 +345,6 @@ export default function App() {
         setView={setView}
         businessName={state.businessName}
         onLogout={handleLogout}
-        theme={theme}
-        setTheme={setTheme}
       />
 
       {/* Main Content (Center, Flexible) + AI Copilot Panel (Right, 350px) Layout */}
@@ -438,8 +420,6 @@ export default function App() {
               state={state}
               onUpdateBusiness={updateBusinessMetadata}
               onLogout={handleLogout}
-              theme={theme}
-              setTheme={setTheme}
             />
           )}
         </main>
