@@ -45,7 +45,7 @@ export async function handleChat(req: AuthenticatedRequest, res: Response): Prom
     const modelMessages = await convertToModelMessages(messages, { tools });
 
     const result = streamText({
-      model: googleProvider('gemini-1.5-flash'),
+      model: googleProvider('gemini-2.5-flash'),
       abortSignal: abortController.signal,
       system: `You are AARYA, an India-first AI CFO copilot for SMEs and startups.
 You provide clear, founder-friendly financial decision insights in plain English.

@@ -89,7 +89,7 @@ Please use this precise business state to answer the user's questions. Be concis
     if (ai) {
       try {
         const response = await ai.models.generateContent({
-          model: "gemini-1.5-flash",
+          model: "gemini-2.5-flash",
           contents: formattedContents,
           config: {
             systemInstruction: systemInstruction,

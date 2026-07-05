@@ -94,7 +94,7 @@ export async function classifyColumnsWithLLM(
 ): Promise<LLMClassificationResult> {
   const ai    = getGenAI();
   const model = ai.getGenerativeModel({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.5-flash',
     generationConfig: {
       responseMimeType: 'application/json',   // Force JSON response mode
       temperature: 0,                          // Deterministic output for mapping
