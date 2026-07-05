@@ -1,12 +1,12 @@
 import { Router, RequestHandler } from 'express';
-import { authMiddleware, requireRole } from '../../middleware/auth.middleware';
+import { authMiddleware, requireRole } from '../../middleware/auth.middleware.js';
 import {
   onboardNewUser,
   getMyCompany,
   updateMyCompany,
   inviteUser,
   listMembers,
-} from './companies.controller';
+} from './companies.controller.js';
 
 const router = Router();
 

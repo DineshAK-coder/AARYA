@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
-import { supabase, supabaseAdmin } from '../config/supabase';
-import { AuthenticatedRequest, UserRole } from '../types';
+import { supabase, supabaseAdmin } from '../config/supabase.js';
+import { AuthenticatedRequest, UserRole } from '../types/index.js';
 
 // ============================================================
 // authMiddleware

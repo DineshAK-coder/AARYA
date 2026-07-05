@@ -1,7 +1,7 @@
 import { Router, RequestHandler } from 'express';
-import { authMiddleware } from '../../middleware/auth.middleware';
-import { upload } from '../../middleware/upload.middleware';
-import { uploadTransactions, getTransactions } from './transactions.controller';
+import { authMiddleware } from '../../middleware/auth.middleware.js';
+import { upload } from '../../middleware/upload.middleware.js';
+import { uploadTransactions, getTransactions } from './transactions.controller.js';
 
 const router = Router();
 

@@ -1,9 +1,9 @@
 import { Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { supabaseAdmin } from '../../config/supabase';
-import { generateEmbedding } from '../../utils/llmClassifier';
-import { AuthenticatedRequest } from '../../types';
-import { AppError } from '../../middleware/error.middleware';
+import { supabaseAdmin } from '../../config/supabase.js';
+import { generateEmbedding } from '../../utils/llmClassifier.js';
+import { AuthenticatedRequest } from '../../types/index.js';
+import { AppError } from '../../middleware/error.middleware.js';
 
 // ============================================================
 // Decisions Controller – AI Memory Ledger

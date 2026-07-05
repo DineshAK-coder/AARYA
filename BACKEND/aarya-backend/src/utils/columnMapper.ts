@@ -1,7 +1,7 @@
 import Fuse from 'fuse.js';
-import { classifyColumnsWithLLM } from './llmClassifier';
-import { ColumnMappings, DetectionResult, ParsedTransactionRow, TransactionType } from '../types';
-import { AppError } from '../middleware/error.middleware';
+import { classifyColumnsWithLLM } from './llmClassifier.js';
+import { ColumnMappings, DetectionResult, ParsedTransactionRow, TransactionType } from '../types/index.js';
+import { AppError } from '../middleware/error.middleware.js';
 
 // ============================================================
 // Column Mapper Utility

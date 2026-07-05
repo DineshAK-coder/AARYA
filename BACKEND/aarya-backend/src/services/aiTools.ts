@@ -1,6 +1,6 @@
 import { tool } from 'ai';
 import { z } from 'zod/v3';
-import { supabaseAdmin } from '../config/supabase';
+import { supabaseAdmin } from '../config/supabase.js';
 
 export const getTools = (companyId: string) => ({
   get_cash_visibility: tool({
@@ -19,7 +19,7 @@ export const getTools = (companyId: string) => ({
 
         let cashIn = 0;
         let cashOut = 0;
-        (data || []).forEach((tx) => {
+        (data || []).forEach((tx: any) => {
           const amt = Number(tx.amount);
           if (tx.transaction_type === 'income') {
             cashIn += amt;
@@ -58,8 +58,8 @@ export const getTools = (companyId: string) => ({
 
         const now = new Date();
         const receivables = (data || [])
-          .filter((tx) => tx.transaction_type === 'income')
-          .map((tx) => ({
+          .filter((tx: any) => tx.transaction_type === 'income')
+          .map((tx: any) => ({
             id: tx.id,
             description: tx.description || 'Unnamed invoice/income',
             amount: Number(tx.amount),
@@ -68,8 +68,8 @@ export const getTools = (companyId: string) => ({
           }));
 
         const payables = (data || [])
-          .filter((tx) => tx.transaction_type === 'expense')
-          .map((tx) => ({
+          .filter((tx: any) => tx.transaction_type === 'expense')
+          .map((tx: any) => ({
             id: tx.id,
             description: tx.description || 'Unnamed liability/expense',
             amount: Number(tx.amount),
@@ -80,8 +80,8 @@ export const getTools = (companyId: string) => ({
         return {
           receivables,
           payables,
-          total_receivables: receivables.reduce((sum, r) => sum + r.amount, 0),
-          total_payables: payables.reduce((sum, p) => sum + p.amount, 0),
+          total_receivables: receivables.reduce((sum: number, r: any) => sum + r.amount, 0),
+          total_payables: payables.reduce((sum: number, p: any) => sum + p.amount, 0),
         };
       } catch (err: any) {
         return { error: err.message || 'Database error occurred.' };
@@ -108,7 +108,7 @@ export const getTools = (companyId: string) => ({
         let overduePayables = 0;
         const now = new Date();
 
-        txs.forEach((tx) => {
+        txs.forEach((tx: any) => {
           const amt = Number(tx.amount);
           const isOverdue = tx.due_date ? new Date(tx.due_date) < now : false;
           if (tx.transaction_type === 'income') {

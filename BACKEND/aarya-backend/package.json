@@ -2,10 +2,11 @@
   "name": "aarya-backend",
   "version": "1.0.0",
   "description": "AARYA AI CFO Copilot – Backend API (Node.js + TypeScript + Supabase)",
+  "type": "module",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsup src/server.ts --format cjs --dts --out-dir dist",
+    "build": "tsup src/server.ts --format esm --dts --out-dir dist",
     "start": "node dist/server.js",
     "lint": "tsc --noEmit"
   },

@@ -1,6 +1,6 @@
 import { Router, RequestHandler } from 'express';
-import { authMiddleware } from '../../middleware/auth.middleware';
-import { listSnapshots, createSnapshot } from './snapshots.controller';
+import { authMiddleware } from '../../middleware/auth.middleware.js';
+import { listSnapshots, createSnapshot } from './snapshots.controller.js';
 
 const router = Router();
 

@@ -1,8 +1,8 @@
 import { Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { AuthenticatedRequest, ColumnMappings } from '../../types';
-import { AppError } from '../../middleware/error.middleware';
-import { ingestTransactions, listTransactions } from './transactions.service';
+import { AuthenticatedRequest, ColumnMappings } from '../../types/index.js';
+import { AppError } from '../../middleware/error.middleware.js';
+import { ingestTransactions, listTransactions } from './transactions.service.js';
 
 // ============================================================
 // Transactions Controller

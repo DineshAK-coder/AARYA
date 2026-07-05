@@ -7,8 +7,8 @@ import {
   toUIMessageStream,
   pipeUIMessageStreamToResponse
 } from 'ai';
-import { AuthenticatedRequest } from '../../types';
-import { getTools } from '../../services/aiTools';
+import { AuthenticatedRequest } from '../../types/index.js';
+import { getTools } from '../../services/aiTools.js';
 
 // Initialize the Google Generative AI provider using Vercel AI SDK
 const googleProvider = createGoogleGenerativeAI({

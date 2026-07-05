@@ -1,14 +1,14 @@
-import { supabaseAdmin } from '../../config/supabase';
-import { parseFileBuffer, sampleRows } from '../../utils/csvParser';
-import { autoDetectMappings, transformRow } from '../../utils/columnMapper';
+import { supabaseAdmin } from '../../config/supabase.js';
+import { parseFileBuffer, sampleRows } from '../../utils/csvParser.js';
+import { autoDetectMappings, transformRow } from '../../utils/columnMapper.js';
 import {
   ColumnMappings,
   IngestionResult,
   ParsedTransactionRow,
   PaginatedResult,
   FinancialTransaction,
-} from '../../types';
-import { AppError } from '../../middleware/error.middleware';
+} from '../../types/index.js';
+import { AppError } from '../../middleware/error.middleware.js';
 
 // ============================================================
 // Transactions Service
@@ -183,12 +183,12 @@ function validateManualMappings(mappings: ColumnMappings, headers: string[]): vo
   for (const field of required) {
     const value = mappings[field];
     if (!value) {
-      throw new AppError(400, `column_mappings is missing required field: "${field}".`, 'VALIDATION_ERROR');
+      throw new AppError(400, `column_mappings is missing required field: "${String(field)}".`, 'VALIDATION_ERROR');
     }
     if (!headerSet.has(value)) {
       throw new AppError(
         400,
-        `column_mappings["${field}"] = "${value}" does not match any column header in the file. ` +
+        `column_mappings["${String(field)}"] = "${value}" does not match any column header in the file. ` +
         `Available headers: ${[...headerSet].join(', ')}`,
         'MAPPING_MISMATCH'
       );

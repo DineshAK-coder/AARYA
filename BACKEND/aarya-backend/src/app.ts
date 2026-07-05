@@ -4,13 +4,13 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 
-import authRoutes        from './modules/auth/auth.routes';
-import companiesRoutes   from './modules/companies/companies.routes';
-import transactionRoutes from './modules/transactions/transactions.routes';
-import snapshotRoutes    from './modules/snapshots/snapshots.routes';
-import decisionRoutes    from './modules/decisions/decisions.routes';
-import chatRoutes        from './modules/chat/chat.routes';
-import { errorMiddleware } from './middleware/error.middleware';
+import authRoutes        from './modules/auth/auth.routes.js';
+import companiesRoutes   from './modules/companies/companies.routes.js';
+import transactionRoutes from './modules/transactions/transactions.routes.js';
+import snapshotRoutes    from './modules/snapshots/snapshots.routes.js';
+import decisionRoutes    from './modules/decisions/decisions.routes.js';
+import chatRoutes        from './modules/chat/chat.routes.js';
+import { errorMiddleware } from './middleware/error.middleware.js';
 
 dotenv.config();
 

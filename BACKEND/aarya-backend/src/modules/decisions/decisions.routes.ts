@@ -1,11 +1,11 @@
 import { Router, RequestHandler } from 'express';
-import { authMiddleware } from '../../middleware/auth.middleware';
+import { authMiddleware } from '../../middleware/auth.middleware.js';
 import {
   listDecisions,
   createDecision,
   searchDecisions,
   updateFounderDecision,
-} from './decisions.controller';
+} from './decisions.controller.js';
 
 const router = Router();
 

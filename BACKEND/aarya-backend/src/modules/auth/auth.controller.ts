@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
-import { supabaseAdmin } from '../../config/supabase';
-import { AuthenticatedRequest } from '../../types';
-import { AppError } from '../../middleware/error.middleware';
+import { supabaseAdmin } from '../../config/supabase.js';
+import { AuthenticatedRequest } from '../../types/index.js';
+import { AppError } from '../../middleware/error.middleware.js';
 
 // ============================================================
 // Auth Controller

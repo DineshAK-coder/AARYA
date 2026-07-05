@@ -1,4 +1,4 @@
-import app from './app';
+import app from './app.js';
 
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 
@@ -21,3 +21,5 @@ process.on('SIGINT', () => {
   console.log('\nSIGINT received. Shutting down...');
   server.close(() => process.exit(0));
 });
+
+export default app;
