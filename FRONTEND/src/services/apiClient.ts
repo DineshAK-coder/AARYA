@@ -245,11 +245,9 @@ export const postChat = (payload: {
   messages: Array<{ sender: string; text: string }>;
   context: Record<string, unknown>;
 }) =>
-  fetch('/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  }).then((r) => {
-    if (!r.ok) throw new Error(`Chat API error ${r.status}`);
-    return r.json() as Promise<{ reply: string; simulated?: boolean }>;
-  });
+  request<{ reply: string; simulated?: boolean }>('POST', '/api/chat', JSON.stringify({
+    messages: payload.messages.map(m => ({
+      sender: m.sender,
+      text: m.text
+    }))
+  }));
