@@ -1,21 +1,64 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Sparkles, Send, Bot, User, HelpCircle, Loader2, Mic } from "lucide-react";
-import { BusinessState, CfoMessage } from "../types";
-import { postChat } from "../services/apiClient";
+import { BusinessState } from "../types";
+import { useChat } from "@ai-sdk/react";
+import { TextStreamChatTransport } from "ai";
+import { supabase } from "../services/apiClient";
 
 interface CfoChatProps {
   state: BusinessState;
-  addChatMessage: (msg: CfoMessage) => void;
-  clearChat: () => void;
   currencySymbol: string;
+  preseededPrompt?: string | null;
+  clearPreseededPrompt?: () => void;
 }
 
-export const CfoChatView: React.FC<CfoChatProps> = ({ state, addChatMessage, clearChat, currencySymbol }) => {
+export const CfoChatView: React.FC<CfoChatProps> = ({
+  state,
+  currencySymbol,
+  preseededPrompt,
+  clearPreseededPrompt,
+}) => {
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const listenTimeoutRef = useRef<any>(null);
+
+  // Initialize Vercel AI SDK useChat hook pointing to the backend stream endpoint
+  const {
+    messages,
+    sendMessage,
+    status,
+    setMessages,
+  } = useChat({
+    transport: new TextStreamChatTransport({
+      api: `${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001"}/api/chat`,
+      headers: async () => {
+        if (!supabase) return {};
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        return token ? { Authorization: `Bearer ${token}` } : {};
+      },
+    }),
+    messages: [
+      {
+        id: "msg_welcome",
+        role: "assistant",
+        parts: [{ type: "text", text: "Hello! I am AARYA — your Autonomous AI for Runway, Yield & Analytics. Complete your company onboarding and upload your first ledger sheet to get started. I'm ready to analyze your cash flow, collections, and runway the moment data arrives." }],
+      },
+    ],
+  });
+
+  const isLoading = status === "submitted" || status === "streaming";
+
+  // Watch for preseeded dashboard quick prompts (e.g. from Explain Your Math)
+  useEffect(() => {
+    if (preseededPrompt) {
+      sendMessage({ text: preseededPrompt });
+      if (clearPreseededPrompt) {
+        clearPreseededPrompt();
+      }
+    }
+  }, [preseededPrompt, sendMessage, clearPreseededPrompt]);
 
   const toggleListening = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -30,7 +73,7 @@ export const CfoChatView: React.FC<CfoChatProps> = ({ state, addChatMessage, cle
           "Explain our runways and monthly burn rates.",
           "Who owes us money and how can we accelerate collections?",
           "Are there any outstanding payables or bills crossing 30 days overdue?",
-          "What is our projected cash flow for the next 4 weeks?"
+          "What is our projected cash flow for the next 4 weeks?",
         ];
         const randomPrompt = simulatedVoicePrompts[Math.floor(Math.random() * simulatedVoicePrompts.length)];
         
@@ -51,69 +94,34 @@ export const CfoChatView: React.FC<CfoChatProps> = ({ state, addChatMessage, cle
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [state.chatHistory, loading]);
-
-  const handleSend = async (textToSend: string) => {
-    if (!textToSend.trim()) return;
-
-    // Create and append user message
-    const userMsg: CfoMessage = {
-      id: "msg_" + Date.now(),
-      sender: "user",
-      text: textToSend,
-      timestamp: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
-    };
-    addChatMessage(userMsg);
-    setInput("");
-    setLoading(true);
-
-    try {
-      // API call to backend via centralized apiClient
-      const data = await postChat({
-        messages: [...state.chatHistory, userMsg],
-        context: {
-          businessName: state.businessName,
-          industry: state.industry,
-          currency: state.currency,
-          currencySymbol: currencySymbol,
-          startingBalance: state.startingBalance,
-          ledger: state.ledger,
-          invoices: state.invoices,
-          activities: state.activities
-        }
-      });
-      
-      const agentMsg: CfoMessage = {
-        id: "msg_" + (Date.now() + 1),
-        sender: "agent",
-        text: data.reply || "I am processing the ledgers. Please ask again in a moment.",
-        timestamp: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
-      };
-      addChatMessage(agentMsg);
-    } catch (err) {
-      console.error("Failed to connect to CFO backend:", err);
-      // Failover message
-      const agentMsg: CfoMessage = {
-        id: "msg_" + (Date.now() + 1),
-        sender: "agent",
-        text: "My apologies. I encountered a network disruption while checking your ledger accounts. I recommend reviewing your outstanding overdue list directly on the Ledger tab.",
-        timestamp: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
-      };
-      addChatMessage(agentMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [messages, isLoading]);
 
   const handleSuggestedClick = (promptText: string) => {
-    handleSend(promptText);
+    sendMessage({ text: promptText });
+  };
+
+  const handleClear = () => {
+    setMessages([
+      {
+        id: "msg_reinit_" + Date.now(),
+        role: "assistant",
+        parts: [{ type: "text", text: "AARYA CFO Session has been reset. How can I assist you with ledger audits, collection tracking, or cash flow advice today?" }],
+      },
+    ]);
+  };
+
+  const handleSend = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+    sendMessage({ text: input });
+    setInput("");
   };
 
   const suggestions = [
     "Who owes me money?",
     "Why is cash flow down?",
     "Generate a collection risk report.",
-    "Give me advice on accelerating collections."
+    "Give me advice on accelerating collections.",
   ];
 
   return (
@@ -137,7 +145,7 @@ export const CfoChatView: React.FC<CfoChatProps> = ({ state, addChatMessage, cle
 
         <button
           id="clear-chat-btn"
-          onClick={clearChat}
+          onClick={handleClear}
           className="text-[9px] text-neutral-500 dark:text-[#9E9AA7] hover:text-white dark:hover:text-white hover:bg-red-500/10 dark:hover:bg-[#8A5A7B]/20 font-mono uppercase tracking-wider bg-white dark:bg-[#13111C] border border-neutral-200 dark:border-neutral-800/60 px-2.5 py-1 rounded-[12px] transition-all"
         >
           Reset
@@ -150,8 +158,8 @@ export const CfoChatView: React.FC<CfoChatProps> = ({ state, addChatMessage, cle
         className="flex-1 overflow-y-auto px-4 py-5 scroll-smooth"
       >
         <div className="max-w-4xl mx-auto w-full space-y-5">
-          {state.chatHistory.map((msg) => {
-            const isUser = msg.sender === "user";
+          {messages.map((msg) => {
+            const isUser = msg.role === "user";
             return (
               <div 
                 key={msg.id}
@@ -173,10 +181,15 @@ export const CfoChatView: React.FC<CfoChatProps> = ({ state, addChatMessage, cle
                       ? "bg-[#F4F2F0] dark:bg-[#1F1D2B] border-neutral-200 dark:border-[#D988A1]/20 text-neutral-800 dark:text-white" 
                       : "bg-white dark:bg-[#1F1D2B]/80 border-neutral-200 dark:border-neutral-800/60 text-neutral-800 dark:text-[#E2DFE9] shadow-xs"
                   }`}>
-                    {msg.text}
+                    {msg.parts?.map((part, idx) => {
+                      if (part.type === "text") {
+                        return <span key={idx}>{part.text}</span>;
+                      }
+                      return null;
+                    })}
                   </div>
                   <div className={`text-[9px] text-neutral-400 dark:text-[#9E9AA7] font-mono ${isUser ? "text-right" : "text-left"}`}>
-                    {msg.timestamp}
+                    {new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
                   </div>
                 </div>
               </div>
@@ -184,7 +197,7 @@ export const CfoChatView: React.FC<CfoChatProps> = ({ state, addChatMessage, cle
           })}
 
           {/* Loading */}
-          {loading && (
+          {isLoading && (
             <div className="flex items-start gap-2.5 mr-auto">
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#D988A1] to-[#8A5A7B] text-white flex items-center justify-center shrink-0">
                 <Bot className="w-3.5 h-3.5 animate-spin" />
@@ -203,7 +216,7 @@ export const CfoChatView: React.FC<CfoChatProps> = ({ state, addChatMessage, cle
         <div className="max-w-4xl mx-auto w-full space-y-3">
           
           {/* Suggested chips */}
-          {state.chatHistory.length <= 1 && !loading && (
+          {messages.length <= 1 && !isLoading && (
             <div className="flex flex-wrap gap-1.5 justify-center">
               {suggestions.map((sug, idx) => (
                 <button
@@ -222,10 +235,7 @@ export const CfoChatView: React.FC<CfoChatProps> = ({ state, addChatMessage, cle
 
           {/* Form input */}
           <form 
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSend(input);
-            }} 
+            onSubmit={handleSend} 
             className="flex gap-2 items-center"
           >
             {/* Glassmorphic Microphone Button */}
@@ -245,7 +255,7 @@ export const CfoChatView: React.FC<CfoChatProps> = ({ state, addChatMessage, cle
             <input
               type="text"
               id="chat-user-input"
-              disabled={loading}
+              disabled={isLoading}
               placeholder={isListening ? "Listening to voice input..." : "Ask AARYA..."}
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -254,7 +264,7 @@ export const CfoChatView: React.FC<CfoChatProps> = ({ state, addChatMessage, cle
             <button
               type="submit"
               id="chat-send-btn"
-              disabled={loading || !input.trim()}
+              disabled={isLoading || !input.trim()}
               className="px-4 h-9 rounded-[24px] bg-gradient-to-r from-[#D988A1] to-[#8A5A7B] text-white flex items-center justify-center hover:scale-[1.03] active:scale-[0.97] transition-all disabled:opacity-40 shadow-md shadow-[#8A5A7B]/20"
             >
               <Send className="w-3.5 h-3.5" />

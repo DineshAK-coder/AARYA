@@ -14,7 +14,7 @@ import { AuditTrailView } from "./components/AuditTrailView";
 import { SettingsView } from "./components/SettingsView";
 import { UploadView } from "./components/UploadView";
 import { FounderSummaryView } from "./components/FounderSummaryView";
-import { postChat, supabase } from "./services/apiClient";
+import { supabase } from "./services/apiClient";
 
 export default function App() {
   // ── App state — always starts as NOT logged in ─────────────────────────────
@@ -38,6 +38,7 @@ export default function App() {
 
   const [currentView, setView] = useState<ViewType>("landing");
   const [quickCustomerName, setQuickCustomerName] = useState<string>("");
+  const [preseededPrompt, setPreseededPrompt] = useState<string | null>(null);
 
   // ── Persist state to localStorage ─────────────────────────────────────────
   useEffect(() => {
@@ -245,45 +246,8 @@ export default function App() {
 
   // Navigates directly into virtual CFO chat with preseeded prompt
   const handleAskNovaQuick = (prompt: string) => {
+    setPreseededPrompt(prompt);
     setView("chat");
-    setTimeout(() => {
-      const userMsg: CfoMessage = {
-        id: "msg_quick_" + Date.now(),
-        sender: "user",
-        text: prompt,
-        timestamp: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
-      };
-      addChatMessage(userMsg);
-      // Trigger API fetch
-      triggerChatFetch(userMsg, prompt);
-    }, 100);
-  };
-
-  const triggerChatFetch = async (userMsg: CfoMessage, text: string) => {
-    try {
-      const data = await postChat({
-        messages: [...state.chatHistory, userMsg],
-        context: {
-          businessName: state.businessName,
-          industry: state.industry,
-          currency: state.currency,
-          currencySymbol: state.currencySymbol,
-          startingBalance: state.startingBalance,
-          ledger: state.ledger,
-          invoices: state.invoices,
-          activities: state.activities
-        }
-      });
-      
-      addChatMessage({
-        id: "msg_agent_quick_" + Date.now(),
-        sender: "agent",
-        text: data.reply || "Financial assessment failed to initialize.",
-        timestamp: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
-      });
-    } catch (err) {
-      console.error("Chat proxy error during quick prompt:", err);
-    }
   };
 
   // Link from other parts of dashboard directly into deep customer details inside LedgerView
@@ -380,9 +344,9 @@ export default function App() {
           {currentView === "chat" && (
             <CfoChatView 
               state={state}
-              addChatMessage={addChatMessage}
-              clearChat={clearChat}
               currencySymbol={state.currencySymbol}
+              preseededPrompt={preseededPrompt}
+              clearPreseededPrompt={() => setPreseededPrompt(null)}
             />
           )}
 

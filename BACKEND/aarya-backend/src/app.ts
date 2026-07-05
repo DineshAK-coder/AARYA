@@ -9,6 +9,7 @@ import companiesRoutes   from './modules/companies/companies.routes';
 import transactionRoutes from './modules/transactions/transactions.routes';
 import snapshotRoutes    from './modules/snapshots/snapshots.routes';
 import decisionRoutes    from './modules/decisions/decisions.routes';
+import chatRoutes        from './modules/chat/chat.routes';
 import { errorMiddleware } from './middleware/error.middleware';
 
 dotenv.config();
@@ -78,6 +79,7 @@ app.use('/api',             transactionRoutes);
 
 app.use('/api/snapshots',   snapshotRoutes);
 app.use('/api/decisions',   decisionRoutes);
+app.use('/api/chat',        chatRoutes);
 
 // ============================================================
 // 404 handler – catches unmatched routes
