@@ -296,42 +296,42 @@ The entire schema is in [`BACKEND/aarya-backend/migrations/001_initial_schema.sq
 ```mermaid
 erDiagram
     companies {
-        UUID id PK
-        TEXT name
-        subscription_status_enum subscription_status
-        TIMESTAMPTZ created_at
+        uuid id PK
+        text name
+        enum subscription_status
+        timestamp created_at
     }
     users {
-        UUID id PK_FK
-        UUID company_id FK
-        user_role_enum role
-        TIMESTAMPTZ created_at
+        uuid id PK "FK to auth.users"
+        uuid company_id FK
+        enum role
+        timestamp created_at
     }
     financial_transactions {
-        UUID id PK
-        UUID company_id FK
-        NUMERIC amount
-        transaction_type_enum transaction_type
-        DATE due_date
-        TEXT description
-        TIMESTAMPTZ created_at
+        uuid id PK
+        uuid company_id FK
+        numeric amount
+        enum transaction_type
+        date due_date
+        text description
+        timestamp created_at
     }
     financial_state_snapshots {
-        UUID id PK
-        UUID company_id FK
-        NUMERIC runway_months
-        NUMERIC net_cash_flow
-        DATE snapshot_date
-        TIMESTAMPTZ created_at
+        uuid id PK
+        uuid company_id FK
+        numeric runway_months
+        numeric net_cash_flow
+        date snapshot_date
+        timestamp created_at
     }
     decision_memory_logs {
-        UUID id PK
-        UUID company_id FK
-        TEXT context
-        TEXT ai_recommendation
-        TEXT founder_decision
-        vector_768 embedding
-        TIMESTAMPTZ created_at
+        uuid id PK
+        uuid company_id FK
+        text context
+        text ai_recommendation
+        text founder_decision
+        vector embedding
+        timestamp created_at
     }
 
     companies ||--o{ users : "has many"
