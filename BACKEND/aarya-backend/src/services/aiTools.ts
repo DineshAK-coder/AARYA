@@ -10,9 +10,11 @@ export const getTools = (companyId: string) => ({
       const startTime = Date.now();
       console.log(`[AARYA Tool Tracing] Starting execution of 'get_cash_flow' for company: ${companyId}`);
       try {
+        // ✅ FIX: Only select the specific columns required for cash-flow calculation
+        // instead of select('*') which pulled every column (e.g. raw_row_data, metadata JSON blobs).
         const { data, error } = await supabaseAdmin
           .from('financial_transactions')
-          .select('*')
+          .select('id, amount, transaction_type, due_date, created_at, description')
           .eq('company_id', companyId)
           .order('due_date', { ascending: false });
 
@@ -54,7 +56,7 @@ export const getTools = (companyId: string) => ({
           ? (netCashFlow > 0 ? (netCashFlow / derivedBurnRate).toFixed(1) : '0.0')
           : (netCashFlow >= 0 ? '999+' : '0.0');
 
-        // Capture supporting transactions for explainability
+        // Capture supporting transactions for explainability (top 15 only)
         const supportingTransactions = txs.slice(0, 15).map((tx: any) => ({
           id: tx.id,
           date: tx.due_date || tx.created_at?.slice(0, 10) || 'N/A',
@@ -107,9 +109,11 @@ export const getTools = (companyId: string) => ({
       const startTime = Date.now();
       console.log(`[AARYA Tool Tracing] Starting execution of 'get_receivables_and_payables' for company: ${companyId}`);
       try {
+        // ✅ FIX: Only select the specific columns needed to build receivable/payable lists.
+        // Drops large JSON/text blob columns (raw_row_data, metadata, etc.) from the wire payload.
         const { data, error } = await supabaseAdmin
           .from('financial_transactions')
-          .select('*')
+          .select('id, amount, transaction_type, due_date, description')
           .eq('company_id', companyId)
           .order('due_date', { ascending: false });
 
@@ -174,9 +178,12 @@ export const getTools = (companyId: string) => ({
       const startTime = Date.now();
       console.log(`[AARYA Tool Tracing] Starting execution of 'generate_founder_summary' for company: ${companyId}`);
       try {
+        // ✅ FIX: Only select the minimal columns needed for the founder summary aggregation:
+        // amount, transaction_type, and due_date. Avoids transferring description blobs
+        // and other unused columns such as raw_row_data, metadata, etc.
         const { data, error } = await supabaseAdmin
           .from('financial_transactions')
-          .select('*')
+          .select('amount, transaction_type, due_date')
           .eq('company_id', companyId)
           .order('due_date', { ascending: false });
 
@@ -298,4 +305,3 @@ export const getTools = (companyId: string) => ({
     },
   }),
 });
-
