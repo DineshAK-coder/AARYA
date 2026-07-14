@@ -31,7 +31,7 @@
 
 AARYA (**A**utonomous **A**I for **R**unway, **Y**ield & **A**nalytics) is an India-first AI CFO copilot designed for SMEs, startups, finance teams, and Chartered Accountants (CAs). It transforms messy financial data — such as spreadsheets, bank exports, and scattered invoices — into simple, actionable answers about cash flow, runway, dues, and overall business health.
 
-Built as a high-impact 36-hour hackathon MVP, AARYA is architected from day one to scale into an enterprise-grade SaaS financial operating system. It is a fully decoupled full-stack application combining a **React 19 / Vite 6** frontend, a **Node.js + Express.js + TypeScript** backend, **Supabase (PostgreSQL 15+)** as the managed database, and **Google Gemini 2.5 Flash** as the AI engine.
+Built as a high-impact hackathon MVP, AARYA is architected from day one to scale into an enterprise-grade SaaS financial operating system. It is a fully decoupled full-stack application combining a **React 19 / Vite 6** frontend, a **Node.js + Express.js + TypeScript** backend, **Supabase (PostgreSQL 15+)** as the managed database, and **Google Gemini 2.5 Flash** as the AI engine.
 
 ---
 
