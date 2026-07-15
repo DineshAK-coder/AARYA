@@ -125,70 +125,6 @@ Rules for including the token:
       messages: modelMessages,
       tools,
       stopWhen: stepCountIs(5),
-
-      // ── Step 5: onFinish — update or clean up the placeholder row ────────────
-      onFinish: async ({ text }: { text: string }) => {
-        const decisionMarker = `[[DEC:${decisionId}]]`;
-
-        if (text.includes(decisionMarker)) {
-          // AARYA included the marker → this is an actionable recommendation.
-          const cleanRecommendation = text.replace(decisionMarker, '').trim();
-
-          // ── STEP A: Save ai_recommendation text immediately (own try block).
-          // This runs first and independently — even if embedding fails below,
-          // the recommendation text is already committed to the DB.
-          try {
-            const { error: textUpdateError } = await supabaseAdmin
-              .from('decision_memory_logs')
-              .update({ ai_recommendation: cleanRecommendation })
-              .eq('id', decisionId);
-
-            if (textUpdateError) {
-              console.error('[ChatController] ai_recommendation text save error:', textUpdateError.message);
-            } else {
-              console.log(`[ChatController] ai_recommendation text saved: ${decisionId}`);
-            }
-          } catch (err: any) {
-            console.error('[ChatController] ai_recommendation text save threw:', err?.message || err);
-          }
-
-          // ── STEP B: Generate embedding and store it via RPC (separate, best-effort).
-          // Using RPC bypasses PostgREST's vector type inference, same as match_decisions.
-          try {
-            const textToEmbed = `Context: ${context}\nRecommendation: ${cleanRecommendation}`;
-            const rawEmbedding = await generateEmbedding(textToEmbed);
-            console.log(`[ChatController] Embedding generated: ${rawEmbedding.length} dims for ${decisionId}`);
-
-            const { error: rpcError } = await supabaseAdmin.rpc('update_decision_embedding', {
-              p_id:         decisionId,
-              p_company_id: companyId,
-              p_embedding:  `[${rawEmbedding.join(',')}]`,
-            });
-
-            if (rpcError) {
-              console.error('[ChatController] RPC embedding update error:', rpcError.message);
-            } else {
-              console.log(`[ChatController] Embedding stored via RPC: ${decisionId}`);
-            }
-          } catch (err: any) {
-            // Non-fatal — semantic search just won't work for this entry
-            console.error('[ChatController] Embedding generation failed (non-fatal):', err?.message || err);
-          }
-        } else {
-          // AARYA did NOT include the marker → not a recommendation (greeting, data lookup, etc.)
-          // Clean up the pre-inserted placeholder so it doesn't pollute the table.
-          const { error: deleteError } = await supabaseAdmin
-            .from('decision_memory_logs')
-            .delete()
-            .eq('id', decisionId);
-
-          if (deleteError) {
-            console.error('[ChatController] Placeholder cleanup error:', deleteError.message);
-          } else {
-            console.log(`[ChatController] Non-recommendation response — placeholder cleaned up: ${decisionId}`);
-          }
-        }
-      },
     });
 
     // Transform streamText parts into UIMessageChunks as expected by DefaultChatTransport
@@ -206,6 +142,74 @@ Rules for including the token:
       response: res,
       stream: uiMessageStream,
     });
+
+    // ── Step 5: Post-stream DB work (embedding + cleanup) ─────────────────────
+    // IMPORTANT: We await result.text here (AFTER piping) so the serverless
+    // function stays alive until the full text is available. onFinish was
+    // previously used, but its async continuations were killed by Vercel's
+    // runtime as soon as the HTTP response finished writing.
+    try {
+      const fullText = await result.text;
+      const decisionMarker = `[[DEC:${decisionId}]]`;
+
+      if (fullText.includes(decisionMarker)) {
+        // AARYA included the marker → this is an actionable recommendation.
+        const cleanRecommendation = fullText.replace(decisionMarker, '').trim();
+
+        // ── STEP A: Save ai_recommendation text (own try block so embedding
+        // failure can't prevent the text from being committed).
+        try {
+          const { error: textUpdateError } = await supabaseAdmin
+            .from('decision_memory_logs')
+            .update({ ai_recommendation: cleanRecommendation })
+            .eq('id', decisionId);
+
+          if (textUpdateError) {
+            console.error('[ChatController] ai_recommendation text save error:', textUpdateError.message);
+          } else {
+            console.log(`[ChatController] ai_recommendation text saved: ${decisionId}`);
+          }
+        } catch (err: any) {
+          console.error('[ChatController] ai_recommendation text save threw:', err?.message || err);
+        }
+
+        // ── STEP B: Generate embedding and store via RPC.
+        // RPC bypasses PostgREST's vector type inference issues.
+        try {
+          const textToEmbed = `Context: ${context}\nRecommendation: ${cleanRecommendation}`;
+          const rawEmbedding = await generateEmbedding(textToEmbed);
+          console.log(`[ChatController] Embedding generated: ${rawEmbedding.length} dims for ${decisionId}`);
+
+          const { error: rpcError } = await supabaseAdmin.rpc('update_decision_embedding', {
+            p_id:         decisionId,
+            p_company_id: companyId,
+            p_embedding:  `[${rawEmbedding.join(',')}]`,
+          });
+
+          if (rpcError) {
+            console.error('[ChatController] RPC embedding update error:', rpcError.message);
+          } else {
+            console.log(`[ChatController] Embedding stored via RPC: ${decisionId}`);
+          }
+        } catch (err: any) {
+          console.error('[ChatController] Embedding generation failed (non-fatal):', err?.message || err);
+        }
+      } else {
+        // AARYA did NOT include the marker → clean up the pre-inserted placeholder.
+        const { error: deleteError } = await supabaseAdmin
+          .from('decision_memory_logs')
+          .delete()
+          .eq('id', decisionId);
+
+        if (deleteError) {
+          console.error('[ChatController] Placeholder cleanup error:', deleteError.message);
+        } else {
+          console.log(`[ChatController] Non-recommendation — placeholder cleaned up: ${decisionId}`);
+        }
+      }
+    } catch (postStreamErr: any) {
+      console.error('[ChatController] Post-stream DB work failed:', postStreamErr?.message || postStreamErr);
+    }
   } catch (err: any) {
     clearTimeout(timeoutId);
     console.error('[ChatController] Error:', err);
