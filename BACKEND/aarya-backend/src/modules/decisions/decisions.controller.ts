@@ -191,11 +191,14 @@ export async function updateFounderDecision(
     }
 
     // ── 2. Generate + store embedding via RPC (bypasses PostgREST vector type issues)
-    // Runs after the text fields are already safely saved above.
-    if (ai_recommendation) {
+    // Use ai_recommendation from the PATCH body if provided, otherwise use the
+    // value already stored in the DB row (updated.ai_recommendation).
+    const embeddingSource = (ai_recommendation ?? updated.ai_recommendation ?? '').trim();
+    if (embeddingSource.length > 10) {
       try {
         const contextText = updated.context ?? '';
-        const textToEmbed = `Context: ${contextText}\nRecommendation: ${ai_recommendation}`;
+        const textToEmbed = `Context: ${contextText}\nRecommendation: ${embeddingSource}`;
+        console.log(`[DecisionsController] Generating embedding for ${id}, text length: ${textToEmbed.length}`);
         const rawEmbedding = await generateEmbedding(textToEmbed);
         console.log(`[DecisionsController] Embedding generated: ${rawEmbedding.length} dims for ${id}`);
 
@@ -206,13 +209,15 @@ export async function updateFounderDecision(
         });
 
         if (rpcError) {
-          console.error('[DecisionsController] RPC embedding update error:', rpcError.message);
+          console.error('[DecisionsController] RPC embedding update error:', JSON.stringify(rpcError));
         } else {
           console.log(`[DecisionsController] Embedding stored via RPC for decision: ${id}`);
         }
       } catch (embErr: any) {
         console.error('[DecisionsController] Embedding generation failed (non-fatal):', embErr?.message || embErr);
       }
+    } else {
+      console.warn(`[DecisionsController] Skipping embedding for ${id} — ai_recommendation too short ("${embeddingSource.slice(0, 50)}")`);
     }
 
     res.json({ success: true, data: updated });
