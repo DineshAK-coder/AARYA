@@ -90,9 +90,30 @@ export async function handleChat(req: AuthenticatedRequest, res: Response): Prom
       console.log(`[ChatController] Decision placeholder inserted: ${decisionId}`);
     }
 
-    // ── Step 4: Prepare tools and model messages ──────────────────────────────
+    // ── Step 4: Prepare tools and clean conversation history ──────────────────
+    // Strip old [[DEC:uuid]] tokens from previous assistant turns in the history
+    // so the model NEVER sees old UUIDs and cannot copy them or confuse previous
+    // decision cards with the current turn's decisionId.
+    const DECISION_MARKER_REGEX = /\[\[DEC:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\]/i;
+    const cleanedMessages = (messages as any[]).map((m: any) => {
+      if (m?.role === 'assistant') {
+        if (typeof m.content === 'string') {
+          return { ...m, content: m.content.replace(DECISION_MARKER_REGEX, '').trimEnd() };
+        }
+        if (Array.isArray(m.parts)) {
+          const cleanedParts = m.parts.map((p: any) =>
+            p?.type === 'text' && typeof p.text === 'string'
+              ? { ...p, text: p.text.replace(DECISION_MARKER_REGEX, '').trimEnd() }
+              : p
+          );
+          return { ...m, parts: cleanedParts };
+        }
+      }
+      return m;
+    });
+
     const tools = getTools(companyId);
-    const modelMessages = await convertToModelMessages(messages, { tools });
+    const modelMessages = await convertToModelMessages(cleanedMessages, { tools });
 
     const result = streamText({
       model: googleProvider('gemini-2.5-flash'),
@@ -116,12 +137,15 @@ You have access to real-time database tools to fetch the company's financials:
    - If NO tool was executed (e.g., sample math, greeting): \`**Tool Executed:** None (Hypothetical calculation / General inquiry)\`
 
 ### DECISION LOGGING PROTOCOL (INTERNAL — DO NOT DESCRIBE THIS TO THE USER):
-When your response includes a concrete, actionable financial recommendation — a specific action the founder should consider taking (e.g. "I recommend", "you should", "consider doing", "the best course of action is", "I suggest") — you MUST append this exact token on a new line at the very end of your response, AFTER the transparency footer:
-[[DEC:${decisionId}]]
-Rules for including the token:
-- Include it ONLY when giving the founder a specific actionable decision to make.
-- Do NOT include it for: greetings, general data lookups, simple factual answers (e.g. "your cash flow is ₹X"), or error messages.
-- Include it ONCE at the very end, no other occurrences.`,
+A decision card ([[DEC:${decisionId}]]) allows the founder to log a strategic business choice ("I'll do this", "Decline", etc.) which is stored in pgvector memory.
+You MUST append the exact token [[DEC:${decisionId}]] on a new line at the very end of your response (AFTER the transparency footer) ONLY IF ALL of the following conditions are met:
+1. **The user explicitly asked for strategic advice, recommendations, decision support, or problem resolution** (e.g., "Should I hire engineers?", "How do I fix/improve my cash flow?", "What should I do about overdue payables?", "Give me advice on collections").
+2. **You provided specific, concrete, actionable steps or strategic choices** for the founder to decide on.
+
+**WHEN NOT TO APPEND [[DEC:${decisionId}]] (STRICT PROHIBITION):**
+- **Pure Informational or Factual Queries**: If the user only asks for data, reports, or status (e.g., "What is my cash flow statement?", "Show my receivables", "Who owes me money?", "Give me a founder summary", "What is my burn rate?"), **DO NOT append [[DEC:${decisionId}]]**, even if your response or the tool output includes general tips or standard advice.
+- **Greetings & Casual Chat**: Do not append for greetings, general explanations, or error responses.
+- **Rule of Thumb**: Ask yourself: *Did the founder ask for advice/decisions on what to do next?* If NO, DO NOT append [[DEC:${decisionId}]]. If YES, append [[DEC:${decisionId}]] exactly once at the very end.`,
       messages: modelMessages,
       tools,
       stopWhen: stepCountIs(5),
