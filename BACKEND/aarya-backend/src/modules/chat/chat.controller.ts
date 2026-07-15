@@ -19,9 +19,21 @@ const googleProvider = createGoogleGenerativeAI({
 
 /**
  * POST /api/chat
- * Streams AI CFO copilot response with automatic database tool invocation and timeout protection.
- * After streaming completes, if AARYA included a [[DEC:uuid]] marker in its response,
- * the decision is logged to decision_memory_logs with a pgvector embedding.
+ *
+ * Race-condition-safe decision logging flow:
+ *
+ * 1. A decisionId UUID is generated before streaming starts.
+ * 2. A PLACEHOLDER row is inserted into decision_memory_logs immediately
+ *    (ai_recommendation = '', embedding = null) so the row exists in DB
+ *    before the stream even begins.
+ * 3. The decisionId is baked into the system prompt so AARYA can append
+ *    [[DEC:uuid]] at the end of actionable recommendations.
+ * 4. The frontend parses [[DEC:uuid]] from the streamed text and shows
+ *    the Founder Decision card. When the founder clicks, PATCH /api/decisions/:id
+ *    ALWAYS finds the pre-inserted row — no race condition.
+ * 5. onFinish: if [[DEC:uuid]] is in the text, UPDATE the placeholder with
+ *    the full recommendation + pgvector embedding.
+ *    If not found (e.g., greeting, data lookup), DELETE the placeholder row.
  */
 export async function handleChat(req: AuthenticatedRequest, res: Response): Promise<void> {
   const abortController = new AbortController();
@@ -43,14 +55,42 @@ export async function handleChat(req: AuthenticatedRequest, res: Response): Prom
       return;
     }
 
-    // Pre-generate a UUID for the potential decision log entry.
-    // This UUID is baked into the system prompt so AARYA can embed it in its response.
-    // The frontend will parse it out to show the Founder Decision card.
+    // ── Step 1: Pre-generate the decision UUID ────────────────────────────────
     const decisionId: string = crypto.randomUUID();
 
-    const tools = getTools(companyId);
+    // ── Step 2: Extract context (last user message) now, while messages is fresh
+    const lastUserMsg = (messages as any[])
+      .slice()
+      .reverse()
+      .find((m: any) => m.role === 'user');
 
-    // Convert the UI messages (sent by frontend useChat hook) to ModelMessages expected by streamText
+    const context: string =
+      lastUserMsg?.parts?.find((p: any) => p.type === 'text')?.text ||
+      lastUserMsg?.content ||
+      'Financial query';
+
+    // ── Step 3: Pre-insert placeholder row so it exists BEFORE streaming starts.
+    // This eliminates the race condition where the founder clicks the decision
+    // card before onFinish has finished inserting the row.
+    const { error: preInsertError } = await supabaseAdmin
+      .from('decision_memory_logs')
+      .insert({
+        id:                decisionId,
+        company_id:        companyId,
+        context,
+        ai_recommendation: '',   // Filled in by onFinish once streaming completes
+      });
+
+    if (preInsertError) {
+      // Non-fatal: log the error but continue streaming — the decision card
+      // just won't be able to persist the founder's choice.
+      console.error('[ChatController] Pre-insert placeholder failed:', preInsertError.message);
+    } else {
+      console.log(`[ChatController] Decision placeholder inserted: ${decisionId}`);
+    }
+
+    // ── Step 4: Prepare tools and model messages ──────────────────────────────
+    const tools = getTools(companyId);
     const modelMessages = await convertToModelMessages(messages, { tools });
 
     const result = streamText({
@@ -83,54 +123,55 @@ Rules for including the token:
 - Include it ONCE at the very end, no other occurrences.`,
       messages: modelMessages,
       tools,
-      stopWhen: stepCountIs(5), // limit the maximum tool steps in this version of the SDK
+      stopWhen: stepCountIs(5),
+
+      // ── Step 5: onFinish — update or clean up the placeholder row ────────────
       onFinish: async ({ text }: { text: string }) => {
-        // ── Decision Memory Logging ───────────────────────────────────────────
-        // Check if AARYA embedded the decision marker in its final response.
         const decisionMarker = `[[DEC:${decisionId}]]`;
+
         if (text.includes(decisionMarker)) {
-          // Extract the last user message as the context for the decision log
-          const lastUserMsg = (req.body.messages || [])
-            .slice()
-            .reverse()
-            .find((m: any) => m.role === 'user');
-
-          const context: string =
-            lastUserMsg?.parts?.find((p: any) => p.type === 'text')?.text ||
-            lastUserMsg?.content ||
-            'Financial query';
-
-          // Strip the marker from the stored recommendation text
+          // AARYA included the marker → this is an actionable recommendation.
+          // Strip the marker and update the placeholder with real content + embedding.
           const cleanRecommendation = text.replace(decisionMarker, '').trim();
 
           try {
             const textToEmbed = `Context: ${context}\nRecommendation: ${cleanRecommendation}`;
             const embedding = await generateEmbedding(textToEmbed);
 
-            const { error } = await supabaseAdmin
+            const { error: updateError } = await supabaseAdmin
               .from('decision_memory_logs')
-              .insert({
-                id:                decisionId,
-                company_id:        companyId,
-                context,
+              .update({
                 ai_recommendation: cleanRecommendation,
                 embedding,
-              });
+              })
+              .eq('id', decisionId);
 
-            if (error) {
-              console.error('[ChatController] Decision log DB error:', error.message);
+            if (updateError) {
+              console.error('[ChatController] Decision update error:', updateError.message);
             } else {
-              console.log(`[ChatController] Decision logged successfully: ${decisionId}`);
+              console.log(`[ChatController] Decision row updated with recommendation + embedding: ${decisionId}`);
             }
           } catch (err: any) {
-            // Non-fatal — never let embedding/logging failure surface to the user
-            console.error('[ChatController] Failed to generate embedding or log decision:', err?.message || err);
+            console.error('[ChatController] Embedding/update failed (non-fatal):', err?.message || err);
+          }
+        } else {
+          // AARYA did NOT include the marker → not a recommendation (greeting, data lookup, etc.)
+          // Clean up the pre-inserted placeholder so it doesn't pollute the table.
+          const { error: deleteError } = await supabaseAdmin
+            .from('decision_memory_logs')
+            .delete()
+            .eq('id', decisionId);
+
+          if (deleteError) {
+            console.error('[ChatController] Placeholder cleanup error:', deleteError.message);
+          } else {
+            console.log(`[ChatController] Non-recommendation response — placeholder cleaned up: ${decisionId}`);
           }
         }
       },
     });
 
-    // Transform streamText parts into UIMessageChunks stream as expected by DefaultChatTransport
+    // Transform streamText parts into UIMessageChunks as expected by DefaultChatTransport
     const uiMessageStream = toUIMessageStream({
       stream: result.stream,
       tools,

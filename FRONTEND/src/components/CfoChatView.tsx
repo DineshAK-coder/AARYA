@@ -266,10 +266,12 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
     setDecisionLoading((prev) => ({ ...prev, [decisionId]: true }));
     try {
       await updateDecision(decisionId, { founder_decision: choice });
+      // Only lock the card badge AFTER the API call succeeds
+      setDecisionChoices((prev) => ({ ...prev, [decisionId]: choice }));
     } catch (err) {
       console.error("[DecisionCard] Failed to log founder decision:", err);
+      // Do NOT lock the badge — let the founder retry
     } finally {
-      setDecisionChoices((prev) => ({ ...prev, [decisionId]: choice }));
       setDecisionLoading((prev) => ({ ...prev, [decisionId]: false }));
     }
   }, []);
