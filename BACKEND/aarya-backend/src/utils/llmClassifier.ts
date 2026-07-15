@@ -159,10 +159,12 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     throw new Error('[generateEmbedding] GEMINI_API_KEY environment variable is not set');
   }
 
-  // Try text-embedding-004 first (stable, 768-dim), then gemini-embedding-exp-03-07
+  // Use the models actually available on this API key (confirmed via /debug/embedding-models)
+  // gemini-embedding-001 supports outputDimensionality to match our vector(768) Supabase column
   const modelsToTry = [
-    { model: 'text-embedding-004', outputDimensionality: 768 },
-    { model: 'gemini-embedding-exp-03-07', outputDimensionality: 768 },
+    { model: 'gemini-embedding-001',       outputDimensionality: 768 },
+    { model: 'gemini-embedding-2',         outputDimensionality: 768 },
+    { model: 'gemini-embedding-2-preview', outputDimensionality: 768 },
   ];
 
   for (const { model, outputDimensionality } of modelsToTry) {
