@@ -1,4 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { embed } from 'ai';
 
 // ============================================================
 // LLM Column Classifier – Google Gemini 1.5 Flash
@@ -149,13 +151,22 @@ export async function classifyColumnsWithLLM(
 
 /**
  * Generates a 768-dimensional embedding vector for the given text
- * using Google's text-embedding-004 model.
- * Used to embed AI decision context for semantic search.
+ * using Google's text-embedding-004 model via the Vercel AI SDK.
+ *
+ * Uses @ai-sdk/google (the same provider as the chat route) so the
+ * API key is read at call-time — not captured at module load time —
+ * which prevents Vercel cold-start / serverless initialisation issues
+ * that caused the @google/generative-ai approach to silently fail.
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
-  const ai    = getGenAI();
-  const model = ai.getGenerativeModel({ model: 'text-embedding-004' });
+  const googleProvider = createGoogleGenerativeAI({
+    apiKey: process.env.GEMINI_API_KEY,
+  });
 
-  const result = await model.embedContent(text);
-  return result.embedding.values;
+  const { embedding } = await embed({
+    model: googleProvider.textEmbeddingModel('text-embedding-004'),
+    value: text,
+  });
+
+  return embedding;
 }
