@@ -162,7 +162,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   }
 
   const ai    = new GoogleGenerativeAI(apiKey);
-  const model = ai.getGenerativeModel({ model: 'text-embedding-004' }, { apiVersion: 'v1' });
+  const model = ai.getGenerativeModel({ model: 'text-embedding-005' });
   const result = await model.embedContent(text);
 
   const values = result?.embedding?.values;
