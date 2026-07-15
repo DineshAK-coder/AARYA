@@ -170,39 +170,15 @@ export async function updateFounderDecision(
 
     const { founder_decision, ai_recommendation } = parse.data;
 
-    // Build the update payload. Always update founder_decision.
-    // If ai_recommendation is provided by the client, persist it too and
-    // regenerate the embedding so semantic search stays accurate.
-    const updatePayload: Record<string, unknown> = { founder_decision };
-
-    if (ai_recommendation) {
-      updatePayload.ai_recommendation = ai_recommendation;
-
-      // Best-effort: generate and store the embedding alongside the text.
-      try {
-        // Fetch context from the existing row to form a meaningful embed string.
-        const { data: existing } = await supabaseAdmin
-          .from('decision_memory_logs')
-          .select('context')
-          .eq('id', id)
-          .eq('company_id', req.user!.company_id)
-          .single();
-
-        const textToEmbed = `Context: ${existing?.context ?? ''}\nRecommendation: ${ai_recommendation}`;
-        const rawEmbedding = await generateEmbedding(textToEmbed);
-        updatePayload.embedding = toVec(rawEmbedding);
-        console.log(`[DecisionsController] Embedding generated (${rawEmbedding.length} dims) for decision: ${id}`);
-      } catch (embErr: any) {
-        // Non-fatal — recommendation text is still saved even without embedding
-        console.error('[DecisionsController] Embedding generation failed (non-fatal):', embErr?.message || embErr);
-      }
-    }
+    // ── 1. Always update founder_decision (+ ai_recommendation text if provided)
+    const textPayload: Record<string, unknown> = { founder_decision };
+    if (ai_recommendation) textPayload.ai_recommendation = ai_recommendation;
 
     const { data: updated, error } = await supabaseAdmin
       .from('decision_memory_logs')
-      .update(updatePayload)
+      .update(textPayload)
       .eq('id', id)
-      .eq('company_id', req.user!.company_id) // RLS belt-and-braces guard
+      .eq('company_id', req.user!.company_id)
       .select('id, context, ai_recommendation, founder_decision, created_at')
       .single();
 
@@ -212,6 +188,31 @@ export async function updateFounderDecision(
         'Decision log not found or you do not have permission to update it.',
         'NOT_FOUND'
       );
+    }
+
+    // ── 2. Generate + store embedding via RPC (bypasses PostgREST vector type issues)
+    // Runs after the text fields are already safely saved above.
+    if (ai_recommendation) {
+      try {
+        const contextText = updated.context ?? '';
+        const textToEmbed = `Context: ${contextText}\nRecommendation: ${ai_recommendation}`;
+        const rawEmbedding = await generateEmbedding(textToEmbed);
+        console.log(`[DecisionsController] Embedding generated: ${rawEmbedding.length} dims for ${id}`);
+
+        const { error: rpcError } = await supabaseAdmin.rpc('update_decision_embedding', {
+          p_id:         id,
+          p_company_id: req.user!.company_id,
+          p_embedding:  `[${rawEmbedding.join(',')}]`,
+        });
+
+        if (rpcError) {
+          console.error('[DecisionsController] RPC embedding update error:', rpcError.message);
+        } else {
+          console.log(`[DecisionsController] Embedding stored via RPC for decision: ${id}`);
+        }
+      } catch (embErr: any) {
+        console.error('[DecisionsController] Embedding generation failed (non-fatal):', embErr?.message || embErr);
+      }
     }
 
     res.json({ success: true, data: updated });

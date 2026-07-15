@@ -12,14 +12,6 @@ import { getTools } from '../../services/aiTools.js';
 import { generateEmbedding } from '../../utils/llmClassifier.js';
 import { supabaseAdmin } from '../../config/supabase.js';
 
-/**
- * Converts a number[] embedding to the pgvector string literal format.
- * PostgREST requires this string representation for vector column writes.
- * Example: [0.1, 0.2] → "[0.1,0.2]"
- */
-function toVec(embedding: number[]): string {
-  return `[${embedding.join(',')}]`;
-}
 
 // Initialize the Google Generative AI provider using Vercel AI SDK
 const googleProvider = createGoogleGenerativeAI({
@@ -160,25 +152,26 @@ Rules for including the token:
             console.error('[ChatController] ai_recommendation text save threw:', err?.message || err);
           }
 
-          // ── STEP B: Generate embedding and store it (separate, best-effort).
-          // Runs after the text is already safely persisted above.
+          // ── STEP B: Generate embedding and store it via RPC (separate, best-effort).
+          // Using RPC bypasses PostgREST's vector type inference, same as match_decisions.
           try {
             const textToEmbed = `Context: ${context}\nRecommendation: ${cleanRecommendation}`;
             const rawEmbedding = await generateEmbedding(textToEmbed);
             console.log(`[ChatController] Embedding generated: ${rawEmbedding.length} dims for ${decisionId}`);
 
-            const { error: embeddingUpdateError } = await supabaseAdmin
-              .from('decision_memory_logs')
-              .update({ embedding: toVec(rawEmbedding) })
-              .eq('id', decisionId);
+            const { error: rpcError } = await supabaseAdmin.rpc('update_decision_embedding', {
+              p_id:         decisionId,
+              p_company_id: companyId,
+              p_embedding:  `[${rawEmbedding.join(',')}]`,
+            });
 
-            if (embeddingUpdateError) {
-              console.error('[ChatController] Embedding save error:', embeddingUpdateError.message);
+            if (rpcError) {
+              console.error('[ChatController] RPC embedding update error:', rpcError.message);
             } else {
-              console.log(`[ChatController] Embedding saved: ${decisionId}`);
+              console.log(`[ChatController] Embedding stored via RPC: ${decisionId}`);
             }
           } catch (err: any) {
-            // Non-fatal — semantic search just won’t work for this entry
+            // Non-fatal — semantic search just won't work for this entry
             console.error('[ChatController] Embedding generation failed (non-fatal):', err?.message || err);
           }
         } else {
