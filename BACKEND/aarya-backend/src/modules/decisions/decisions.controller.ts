@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { supabaseAdmin } from '../../config/supabase.js';
 import { generateEmbedding } from '../../utils/llmClassifier.js';
@@ -150,8 +150,68 @@ export async function searchDecisions(
     res.json({ success: true, data: data ?? [] });
   } catch (err) {
     next(err);
+}
+
+// ============================================================
+// GET /api/decisions/debug-search
+// Public/debug helper to test pgvector semantic search via GET request.
+// Visit: /api/decisions/debug-search?query=hire&threshold=0.2
+// ============================================================
+export async function debugSearchDecisions(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const query = (req.query.query as string) || 'cash flow';
+    const threshold = parseFloat((req.query.threshold as string) || '0.2');
+    const limit = parseInt((req.query.limit as string) || '10', 10);
+    let companyId = req.query.company_id as string | undefined;
+
+    // If company_id not provided, pick the first company_id from decision_memory_logs
+    if (!companyId) {
+      const { data: firstRow } = await supabaseAdmin
+        .from('decision_memory_logs')
+        .select('company_id')
+        .not('embedding', 'is', null)
+        .limit(1)
+        .maybeSingle();
+      companyId = firstRow?.company_id;
+    }
+
+    if (!companyId) {
+      res.json({ success: false, message: 'No company with embedded decisions found yet.', data: [] });
+      return;
+    }
+
+    // Generate embedding for query
+    const queryEmbedding = await generateEmbedding(query);
+
+    const { data, error } = await supabaseAdmin.rpc('match_decisions', {
+      p_query_embedding: toVec(queryEmbedding),
+      p_match_threshold: threshold,
+      p_match_count:     limit,
+      p_company_id:      companyId,
+    });
+
+    if (error) {
+      res.status(500).json({ success: false, error: error.message });
+      return;
+    }
+
+    res.json({
+      success: true,
+      query,
+      threshold,
+      companyId,
+      matchCount: (data || []).length,
+      data: data || [],
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || String(err) });
   }
 }
+
 
 // ============================================================
 // PATCH /api/decisions/:id

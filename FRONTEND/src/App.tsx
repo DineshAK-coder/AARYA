@@ -14,6 +14,7 @@ import { AuditTrailView } from "./components/AuditTrailView";
 import { SettingsView } from "./components/SettingsView";
 import { UploadView } from "./components/UploadView";
 import { FounderSummaryView } from "./components/FounderSummaryView";
+import { MemorySearchView } from "./components/MemorySearchView";
 import { supabase } from "./services/apiClient";
 
 export default function App() {
@@ -391,13 +392,18 @@ export default function App() {
             />
           )}
 
-          {currentView === "chat" && (
+          {/* Always keep CfoChatView mounted so switching between tabs does NOT unmount the component and vanish the chat log */}
+          <div className={currentView === "chat" ? "flex-1 flex flex-col min-w-0 h-full overflow-hidden" : "hidden"}>
             <CfoChatView 
               state={state}
               currencySymbol={state.currencySymbol}
               preseededPrompt={preseededPrompt}
               clearPreseededPrompt={() => setPreseededPrompt(null)}
             />
+          </div>
+
+          {currentView === "memory" && (
+            <MemorySearchView />
           )}
 
           {currentView === "ledger" && (

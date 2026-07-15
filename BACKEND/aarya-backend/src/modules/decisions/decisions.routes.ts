@@ -5,9 +5,13 @@ import {
   createDecision,
   searchDecisions,
   updateFounderDecision,
+  debugSearchDecisions,
 } from './decisions.controller.js';
 
 const router = Router();
+
+/** GET  /api/decisions/debug-search – Public/debug helper to test pgvector semantic search via browser */
+router.get('/debug-search', debugSearchDecisions as RequestHandler);
 
 /** GET  /api/decisions           – List AI decision logs (paginated) */
 router.get('/', authMiddleware, listDecisions as RequestHandler);
