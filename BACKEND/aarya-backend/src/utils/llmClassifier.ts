@@ -144,15 +144,14 @@ export async function classifyColumnsWithLLM(
 }
 
 // ============================================================
-// Embedding generator – Google text-embedding-004 (768 dims)
-// Uses @ai-sdk/google + embed() from ai (same provider used for chat)
-// because the raw @google/generative-ai SDK returns 404 on all
-// embedding models with this API key's routing.
+// Embedding generator – raw REST API call to Google Generative Language
+// Both the @google/generative-ai SDK (v0.21) and @ai-sdk/google are returning
+// 404. Using fetch directly to get the exact error response from Google.
 // ============================================================
 
 /**
- * Generates a 768-dimensional embedding vector for the given text
- * using the @ai-sdk/google provider's text-embedding-004 model.
+ * Generates a 768-dimensional embedding vector for the given text.
+ * Uses the Google Generative Language REST API directly via fetch.
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -160,18 +159,44 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     throw new Error('[generateEmbedding] GEMINI_API_KEY environment variable is not set');
   }
 
-  const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
-  const { embed } = await import('ai');
+  // Try text-embedding-004 first (stable, 768-dim), then gemini-embedding-exp-03-07
+  const modelsToTry = [
+    { model: 'text-embedding-004', outputDimensionality: 768 },
+    { model: 'gemini-embedding-exp-03-07', outputDimensionality: 768 },
+  ];
 
-  const google = createGoogleGenerativeAI({ apiKey });
-  const { embedding } = await embed({
-    model: google.textEmbeddingModel('text-embedding-004'),
-    value: text,
-  });
+  for (const { model, outputDimensionality } of modelsToTry) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent?key=${apiKey}`;
+    console.log(`[generateEmbedding] Trying model: ${model}`);
 
-  if (!embedding || embedding.length === 0) {
-    throw new Error(`[generateEmbedding] API returned empty or invalid embedding (got ${embedding?.length ?? 0} dims)`);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: `models/${model}`,
+        content: { parts: [{ text }] },
+        outputDimensionality,
+      }),
+    });
+
+    const data = await response.json() as any;
+
+    if (!response.ok) {
+      // Log the FULL error body so we can see exactly what Google says
+      console.error(`[generateEmbedding] ${model} failed [${response.status}]:`, JSON.stringify(data?.error ?? data));
+      continue; // Try next model
+    }
+
+    const values: number[] | undefined = data?.embedding?.values;
+    if (!Array.isArray(values) || values.length === 0) {
+      console.error(`[generateEmbedding] ${model} returned empty values:`, JSON.stringify(data));
+      continue;
+    }
+
+    console.log(`[generateEmbedding] Success with ${model}: ${values.length} dims`);
+    return values;
   }
 
-  return embedding;
+  throw new Error('[generateEmbedding] All embedding models failed — check Vercel logs for the exact Google API error');
 }
+
