@@ -5,6 +5,16 @@ import { generateEmbedding } from '../../utils/llmClassifier.js';
 import { AuthenticatedRequest } from '../../types/index.js';
 import { AppError } from '../../middleware/error.middleware.js';
 
+/**
+ * Converts a number[] embedding to the pgvector string literal format.
+ * PostgREST (the Supabase REST layer) requires this string representation
+ * for vector columns in both INSERT and UPDATE operations.
+ * Example: [0.1, 0.2] → "[0.1,0.2]"
+ */
+function toVec(embedding: number[]): string {
+  return `[${embedding.join(',')}]`;
+}
+
 // ============================================================
 // Decisions Controller – AI Memory Ledger
 // ============================================================
@@ -96,7 +106,7 @@ export async function createDecision(
         context,
         ai_recommendation,
         founder_decision: founder_decision ?? null,
-        embedding,
+        embedding:        toVec(embedding),
       })
       .select('id, context, ai_recommendation, founder_decision, created_at')
       .single();
@@ -129,7 +139,7 @@ export async function searchDecisions(
 
     // Call the match_decisions database function (defined in migration)
     const { data, error } = await supabaseAdmin.rpc('match_decisions', {
-      p_query_embedding: `[${queryEmbedding.join(',')}]`,
+      p_query_embedding: toVec(queryEmbedding),
       p_match_threshold: threshold,
       p_match_count:     limit,
       p_company_id:      req.user!.company_id,
@@ -179,7 +189,9 @@ export async function updateFounderDecision(
           .single();
 
         const textToEmbed = `Context: ${existing?.context ?? ''}\nRecommendation: ${ai_recommendation}`;
-        updatePayload.embedding = await generateEmbedding(textToEmbed);
+        const rawEmbedding = await generateEmbedding(textToEmbed);
+        updatePayload.embedding = toVec(rawEmbedding);
+        console.log(`[DecisionsController] Embedding generated (${rawEmbedding.length} dims) for decision: ${id}`);
       } catch (embErr: any) {
         // Non-fatal — recommendation text is still saved even without embedding
         console.error('[DecisionsController] Embedding generation failed (non-fatal):', embErr?.message || embErr);

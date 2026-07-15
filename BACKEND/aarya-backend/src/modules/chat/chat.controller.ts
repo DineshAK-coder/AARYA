@@ -12,6 +12,15 @@ import { getTools } from '../../services/aiTools.js';
 import { generateEmbedding } from '../../utils/llmClassifier.js';
 import { supabaseAdmin } from '../../config/supabase.js';
 
+/**
+ * Converts a number[] embedding to the pgvector string literal format.
+ * PostgREST requires this string representation for vector column writes.
+ * Example: [0.1, 0.2] → "[0.1,0.2]"
+ */
+function toVec(embedding: number[]): string {
+  return `[${embedding.join(',')}]`;
+}
+
 // Initialize the Google Generative AI provider using Vercel AI SDK
 const googleProvider = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -155,11 +164,12 @@ Rules for including the token:
           // Runs after the text is already safely persisted above.
           try {
             const textToEmbed = `Context: ${context}\nRecommendation: ${cleanRecommendation}`;
-            const embedding = await generateEmbedding(textToEmbed);
+            const rawEmbedding = await generateEmbedding(textToEmbed);
+            console.log(`[ChatController] Embedding generated: ${rawEmbedding.length} dims for ${decisionId}`);
 
             const { error: embeddingUpdateError } = await supabaseAdmin
               .from('decision_memory_logs')
-              .update({ embedding })
+              .update({ embedding: toVec(rawEmbedding) })
               .eq('id', decisionId);
 
             if (embeddingUpdateError) {
@@ -168,7 +178,7 @@ Rules for including the token:
               console.log(`[ChatController] Embedding saved: ${decisionId}`);
             }
           } catch (err: any) {
-            // Non-fatal — semantic search just won't work for this entry
+            // Non-fatal — semantic search just won’t work for this entry
             console.error('[ChatController] Embedding generation failed (non-fatal):', err?.message || err);
           }
         } else {
