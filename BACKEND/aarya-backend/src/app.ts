@@ -50,6 +50,39 @@ app.get('/health', (_req, res) => {
   });
 });
 
+// ── Temporary diagnostic: lists which Google models support embedContent ──────
+// Visit /debug/embedding-models to see what's available on this API key.
+// REMOVE this route after diagnosing the embedding issue.
+app.get('/debug/embedding-models', async (_req, res) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    res.status(500).json({ error: 'GEMINI_API_KEY not set' });
+    return;
+  }
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=200`
+    );
+    const data = await response.json() as any;
+    if (!response.ok) {
+      res.status(response.status).json({ googleError: data });
+      return;
+    }
+    const models: any[] = data?.models ?? [];
+    const embeddingModels = models
+      .filter((m: any) => (m.supportedGenerationMethods ?? []).includes('embedContent'))
+      .map((m: any) => ({ name: m.name, displayName: m.displayName }));
+    const allModels = models.map((m: any) => ({
+      name: m.name,
+      methods: m.supportedGenerationMethods,
+    }));
+    res.json({ embeddingModels, allModels });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // ============================================================
 // API Routes
 // ============================================================

@@ -200,3 +200,34 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   throw new Error('[generateEmbedding] All embedding models failed — check Vercel logs for the exact Google API error');
 }
 
+/**
+ * Diagnostic helper: lists all models available on this API key that
+ * support embedContent. Call this once to find the correct model name.
+ */
+export async function listEmbeddingModels(): Promise<void> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return;
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=100`
+  );
+  const data = await response.json() as any;
+
+  if (!response.ok) {
+    console.error('[listEmbeddingModels] ListModels failed:', JSON.stringify(data?.error ?? data));
+    return;
+  }
+
+  const models: any[] = data?.models ?? [];
+  const embeddingModels = models.filter((m: any) =>
+    (m.supportedGenerationMethods ?? []).includes('embedContent')
+  );
+
+  console.log('[listEmbeddingModels] Models supporting embedContent:',
+    embeddingModels.map((m: any) => m.name).join(', ') || 'NONE FOUND'
+  );
+  console.log('[listEmbeddingModels] All available models:',
+    models.map((m: any) => m.name).join(', ')
+  );
+}
+
