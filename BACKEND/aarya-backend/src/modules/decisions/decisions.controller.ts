@@ -23,7 +23,10 @@ const CreateDecisionSchema = z.object({
 });
 
 const UpdateDecisionSchema = z.object({
-  founder_decision: z.string().min(1, 'founder_decision cannot be empty.'),
+  founder_decision:  z.string().min(1, 'founder_decision cannot be empty.'),
+  // Optional: sent by the frontend to persist the recommendation text + generate
+  // embedding at decision-time (reliable fallback if onFinish embedding failed).
+  ai_recommendation: z.string().optional(),
 });
 
 const SearchSchema = z.object({
@@ -155,11 +158,39 @@ export async function updateFounderDecision(
     const parse = UpdateDecisionSchema.safeParse(req.body);
     if (!parse.success) throw new AppError(400, parse.error.issues[0].message, 'VALIDATION_ERROR');
 
+    const { founder_decision, ai_recommendation } = parse.data;
+
+    // Build the update payload. Always update founder_decision.
+    // If ai_recommendation is provided by the client, persist it too and
+    // regenerate the embedding so semantic search stays accurate.
+    const updatePayload: Record<string, unknown> = { founder_decision };
+
+    if (ai_recommendation) {
+      updatePayload.ai_recommendation = ai_recommendation;
+
+      // Best-effort: generate and store the embedding alongside the text.
+      try {
+        // Fetch context from the existing row to form a meaningful embed string.
+        const { data: existing } = await supabaseAdmin
+          .from('decision_memory_logs')
+          .select('context')
+          .eq('id', id)
+          .eq('company_id', req.user!.company_id)
+          .single();
+
+        const textToEmbed = `Context: ${existing?.context ?? ''}\nRecommendation: ${ai_recommendation}`;
+        updatePayload.embedding = await generateEmbedding(textToEmbed);
+      } catch (embErr: any) {
+        // Non-fatal — recommendation text is still saved even without embedding
+        console.error('[DecisionsController] Embedding generation failed (non-fatal):', embErr?.message || embErr);
+      }
+    }
+
     const { data: updated, error } = await supabaseAdmin
       .from('decision_memory_logs')
-      .update({ founder_decision: parse.data.founder_decision })
+      .update(updatePayload)
       .eq('id', id)
-      .eq('company_id', req.user!.company_id) // Explicit company_id guard (belt + braces on top of RLS)
+      .eq('company_id', req.user!.company_id) // RLS belt-and-braces guard
       .select('id, context, ai_recommendation, founder_decision, created_at')
       .single();
 

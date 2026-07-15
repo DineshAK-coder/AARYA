@@ -42,9 +42,10 @@ function parseMessageText(parts: any[]): { displayText: string; decisionId: stri
 
 interface DecisionCardProps {
   decisionId: string;
+  recommendationText: string;
   chosenOption: string | null;
   isLoading: boolean;
-  onChoose: (decisionId: string, choice: string) => void;
+  onChoose: (decisionId: string, choice: string, recommendationText: string) => void;
 }
 
 const DECISION_OPTIONS = [
@@ -79,6 +80,7 @@ const DECISION_OPTIONS = [
 
 const DecisionCard: React.FC<DecisionCardProps> = ({
   decisionId,
+  recommendationText,
   chosenOption,
   isLoading,
   onChoose,
@@ -114,7 +116,7 @@ const DecisionCard: React.FC<DecisionCardProps> = ({
                   key={opt.key}
                   id={`decision-${decisionId}-${opt.key}`}
                   disabled={isLoading}
-                  onClick={() => onChoose(decisionId, opt.key)}
+                  onClick={() => onChoose(decisionId, opt.key, recommendationText)}
                   className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[10px] font-medium transition-all duration-200 active:scale-95 disabled:opacity-40 ${opt.colorClass}`}
                 >
                   <Icon className="w-3 h-3 shrink-0" />
@@ -261,11 +263,22 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
     setInput("");
   };
 
-  // ── Founder Decision handler ───────────────────────────────────────────────
-  const handleDecisionChoice = useCallback(async (decisionId: string, choice: string) => {
+  // ── Founder Decision handler ─────────────────────────────────────────────
+  const handleDecisionChoice = useCallback(async (
+    decisionId: string,
+    choice: string,
+    recommendationText: string,
+  ) => {
     setDecisionLoading((prev) => ({ ...prev, [decisionId]: true }));
     try {
-      await updateDecision(decisionId, { founder_decision: choice });
+      // Send ai_recommendation alongside founder_decision.
+      // This is the reliable fallback: even if the backend onFinish callback
+      // failed to persist the recommendation text (e.g., embedding API error),
+      // this PATCH call saves both the decision AND the recommendation together.
+      await updateDecision(decisionId, {
+        founder_decision:  choice,
+        ai_recommendation: recommendationText,
+      });
       // Only lock the card badge AFTER the API call succeeds
       setDecisionChoices((prev) => ({ ...prev, [decisionId]: choice }));
     } catch (err) {
@@ -355,10 +368,11 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
                     }
                   </div>
 
-                  {/* ── Founder Decision Card (assistant messages only) ──────── */}
+                  {/* ── Founder Decision Card (assistant messages only) ──────────── */}
                   {!isUser && decisionId && (
                     <DecisionCard
                       decisionId={decisionId}
+                      recommendationText={displayText}
                       chosenOption={decisionChoices[decisionId] ?? null}
                       isLoading={decisionLoading[decisionId] ?? false}
                       onChoose={handleDecisionChoice}

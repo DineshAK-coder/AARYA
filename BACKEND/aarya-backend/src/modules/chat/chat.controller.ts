@@ -131,28 +131,45 @@ Rules for including the token:
 
         if (text.includes(decisionMarker)) {
           // AARYA included the marker → this is an actionable recommendation.
-          // Strip the marker and update the placeholder with real content + embedding.
           const cleanRecommendation = text.replace(decisionMarker, '').trim();
 
+          // ── STEP A: Save ai_recommendation text immediately (own try block).
+          // This runs first and independently — even if embedding fails below,
+          // the recommendation text is already committed to the DB.
+          try {
+            const { error: textUpdateError } = await supabaseAdmin
+              .from('decision_memory_logs')
+              .update({ ai_recommendation: cleanRecommendation })
+              .eq('id', decisionId);
+
+            if (textUpdateError) {
+              console.error('[ChatController] ai_recommendation text save error:', textUpdateError.message);
+            } else {
+              console.log(`[ChatController] ai_recommendation text saved: ${decisionId}`);
+            }
+          } catch (err: any) {
+            console.error('[ChatController] ai_recommendation text save threw:', err?.message || err);
+          }
+
+          // ── STEP B: Generate embedding and store it (separate, best-effort).
+          // Runs after the text is already safely persisted above.
           try {
             const textToEmbed = `Context: ${context}\nRecommendation: ${cleanRecommendation}`;
             const embedding = await generateEmbedding(textToEmbed);
 
-            const { error: updateError } = await supabaseAdmin
+            const { error: embeddingUpdateError } = await supabaseAdmin
               .from('decision_memory_logs')
-              .update({
-                ai_recommendation: cleanRecommendation,
-                embedding,
-              })
+              .update({ embedding })
               .eq('id', decisionId);
 
-            if (updateError) {
-              console.error('[ChatController] Decision update error:', updateError.message);
+            if (embeddingUpdateError) {
+              console.error('[ChatController] Embedding save error:', embeddingUpdateError.message);
             } else {
-              console.log(`[ChatController] Decision row updated with recommendation + embedding: ${decisionId}`);
+              console.log(`[ChatController] Embedding saved: ${decisionId}`);
             }
           } catch (err: any) {
-            console.error('[ChatController] Embedding/update failed (non-fatal):', err?.message || err);
+            // Non-fatal — semantic search just won't work for this entry
+            console.error('[ChatController] Embedding generation failed (non-fatal):', err?.message || err);
           }
         } else {
           // AARYA did NOT include the marker → not a recommendation (greeting, data lookup, etc.)
