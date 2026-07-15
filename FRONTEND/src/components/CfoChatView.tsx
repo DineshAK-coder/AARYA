@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from "react";
-import { Sparkles, Send, Bot, User, HelpCircle, Loader2, Mic, AlertCircle, RefreshCw } from "lucide-react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { Sparkles, Send, Bot, User, HelpCircle, Loader2, Mic, AlertCircle, RefreshCw, CheckCircle2, XCircle, MessageSquareMore, ThumbsUp } from "lucide-react";
 import { BusinessState } from "../types";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { supabase } from "../services/apiClient";
+import { supabase, updateDecision } from "../services/apiClient";
 
 interface CfoChatProps {
   state: BusinessState;
@@ -11,6 +11,142 @@ interface CfoChatProps {
   preseededPrompt?: string | null;
   clearPreseededPrompt?: () => void;
 }
+
+// ── Decision marker helpers ────────────────────────────────────────────────────
+// AARYA appends [[DEC:uuid]] to responses that contain actionable recommendations.
+// We parse this out of the streamed text, strip it from display, and surface the
+// Founder Decision card so the founder can log their actual choice.
+
+const DECISION_MARKER_REGEX = /\[\[DEC:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\]/i;
+
+function parseMessageText(parts: any[]): { displayText: string; decisionId: string | null } {
+  let displayText = "";
+  let decisionId: string | null = null;
+
+  for (const part of parts ?? []) {
+    if (part.type === "text") {
+      const match = part.text.match(DECISION_MARKER_REGEX);
+      if (match) {
+        decisionId = match[1];
+        displayText += part.text.replace(DECISION_MARKER_REGEX, "").trimEnd();
+      } else {
+        displayText += part.text;
+      }
+    }
+  }
+
+  return { displayText: displayText.trim(), decisionId };
+}
+
+// ── Founder Decision Card ─────────────────────────────────────────────────────
+
+interface DecisionCardProps {
+  decisionId: string;
+  chosenOption: string | null;
+  isLoading: boolean;
+  onChoose: (decisionId: string, choice: string) => void;
+}
+
+const DECISION_OPTIONS = [
+  {
+    key: "approve",
+    label: "I'll do this",
+    icon: CheckCircle2,
+    colorClass:
+      "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-400",
+    badgeClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
+    badgeIcon: ThumbsUp,
+  },
+  {
+    key: "decline",
+    label: "Won't pursue",
+    icon: XCircle,
+    colorClass:
+      "border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:border-red-400",
+    badgeClass: "bg-red-500/20 text-red-300 border-red-500/40",
+    badgeIcon: XCircle,
+  },
+  {
+    key: "discuss",
+    label: "Let's discuss",
+    icon: MessageSquareMore,
+    colorClass:
+      "border-[#D988A1]/40 bg-[#D988A1]/10 text-[#D988A1] hover:bg-[#D988A1]/20 hover:border-[#D988A1]",
+    badgeClass: "bg-[#D988A1]/20 text-[#D988A1] border-[#D988A1]/40",
+    badgeIcon: MessageSquareMore,
+  },
+] as const;
+
+const DecisionCard: React.FC<DecisionCardProps> = ({
+  decisionId,
+  chosenOption,
+  isLoading,
+  onChoose,
+}) => {
+  const chosen = DECISION_OPTIONS.find((o) => o.key === chosenOption);
+
+  return (
+    <div
+      className={`mt-2 rounded-2xl border p-3 transition-all duration-500 ${
+        chosen
+          ? "border-neutral-700/60 bg-[#13111C]/60"
+          : "border-[#D988A1]/20 bg-[#1F1D2B]/80"
+      }`}
+    >
+      {!chosen ? (
+        <>
+          {/* Header */}
+          <div className="flex items-center gap-1.5 mb-2.5">
+            <Sparkles className="w-3 h-3 text-[#D988A1]" />
+            <span className="text-[9px] font-mono uppercase tracking-widest text-[#D988A1] font-bold">
+              Founder Decision Required
+            </span>
+          </div>
+          <p className="text-[10px] text-neutral-400 mb-2.5 leading-relaxed">
+            AARYA made a recommendation above. What will you do?
+          </p>
+          {/* Option buttons */}
+          <div className="flex flex-wrap gap-1.5">
+            {DECISION_OPTIONS.map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.key}
+                  id={`decision-${decisionId}-${opt.key}`}
+                  disabled={isLoading}
+                  onClick={() => onChoose(decisionId, opt.key)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[10px] font-medium transition-all duration-200 active:scale-95 disabled:opacity-40 ${opt.colorClass}`}
+                >
+                  <Icon className="w-3 h-3 shrink-0" />
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          {isLoading && (
+            <div className="flex items-center gap-1.5 mt-2">
+              <Loader2 className="w-3 h-3 text-[#D988A1] animate-spin" />
+              <span className="text-[9px] text-neutral-500 font-mono">Logging decision…</span>
+            </div>
+          )}
+        </>
+      ) : (
+        /* Locked badge state */
+        <div className="flex items-center gap-2">
+          <div
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[10px] font-semibold ${chosen.badgeClass}`}
+          >
+            <chosen.badgeIcon className="w-3 h-3 shrink-0" />
+            Logged: {chosen.label}
+          </div>
+          <span className="text-[9px] text-neutral-500 font-mono">Decision recorded ✓</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export const CfoChatView: React.FC<CfoChatProps> = ({
   state,
@@ -22,6 +158,11 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
   const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const listenTimeoutRef = useRef<any>(null);
+
+  // decisionChoices tracks which option the founder picked for each decisionId
+  const [decisionChoices, setDecisionChoices] = useState<Record<string, string>>({});
+  // decisionLoading tracks the in-flight PATCH call
+  const [decisionLoading, setDecisionLoading] = useState<Record<string, boolean>>({});
 
   // Initialize Vercel AI SDK useChat hook pointing to the backend stream endpoint
   const {
@@ -109,6 +250,8 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
         parts: [{ type: "text", text: "AARYA CFO Session has been reset. How can I assist you with ledger audits, collection tracking, or cash flow advice today?" }],
       },
     ]);
+    setDecisionChoices({});
+    setDecisionLoading({});
   };
 
   const handleSend = (e: React.FormEvent) => {
@@ -117,6 +260,19 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
     sendMessage({ text: input });
     setInput("");
   };
+
+  // ── Founder Decision handler ───────────────────────────────────────────────
+  const handleDecisionChoice = useCallback(async (decisionId: string, choice: string) => {
+    setDecisionLoading((prev) => ({ ...prev, [decisionId]: true }));
+    try {
+      await updateDecision(decisionId, { founder_decision: choice });
+    } catch (err) {
+      console.error("[DecisionCard] Failed to log founder decision:", err);
+    } finally {
+      setDecisionChoices((prev) => ({ ...prev, [decisionId]: choice }));
+      setDecisionLoading((prev) => ({ ...prev, [decisionId]: false }));
+    }
+  }, []);
 
   const suggestions = [
     "Who owes me money?",
@@ -161,6 +317,12 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
         <div className="max-w-4xl mx-auto w-full space-y-5">
           {messages.map((msg) => {
             const isUser = msg.role === "user";
+
+            // For assistant messages, parse out the [[DEC:uuid]] marker
+            const { displayText, decisionId } = isUser
+              ? { displayText: "", decisionId: null }
+              : parseMessageText(msg.parts as any[]);
+
             return (
               <div 
                 key={msg.id}
@@ -182,13 +344,25 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
                       ? "bg-[#F4F2F0] dark:bg-[#1F1D2B] border-neutral-200 dark:border-[#D988A1]/20 text-neutral-800 dark:text-white" 
                       : "bg-white dark:bg-[#1F1D2B]/80 border-neutral-200 dark:border-neutral-800/60 text-neutral-800 dark:text-[#E2DFE9] shadow-xs"
                   }`}>
-                    {msg.parts?.map((part, idx) => {
-                      if (part.type === "text") {
-                        return <span key={idx}>{part.text}</span>;
-                      }
-                      return null;
-                    })}
+                    {isUser
+                      ? msg.parts?.map((part: any, idx: number) => {
+                          if (part.type === "text") return <span key={idx}>{part.text}</span>;
+                          return null;
+                        })
+                      : displayText
+                    }
                   </div>
+
+                  {/* ── Founder Decision Card (assistant messages only) ──────── */}
+                  {!isUser && decisionId && (
+                    <DecisionCard
+                      decisionId={decisionId}
+                      chosenOption={decisionChoices[decisionId] ?? null}
+                      isLoading={decisionLoading[decisionId] ?? false}
+                      onChoose={handleDecisionChoice}
+                    />
+                  )}
+
                   <div className={`text-[9px] text-neutral-400 dark:text-[#9E9AA7] font-mono ${isUser ? "text-right" : "text-left"}`}>
                     {new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
                   </div>

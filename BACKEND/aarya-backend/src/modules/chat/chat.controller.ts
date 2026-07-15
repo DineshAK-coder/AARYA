@@ -9,6 +9,8 @@ import {
 } from 'ai';
 import { AuthenticatedRequest } from '../../types/index.js';
 import { getTools } from '../../services/aiTools.js';
+import { generateEmbedding } from '../../utils/llmClassifier.js';
+import { supabaseAdmin } from '../../config/supabase.js';
 
 // Initialize the Google Generative AI provider using Vercel AI SDK
 const googleProvider = createGoogleGenerativeAI({
@@ -18,6 +20,8 @@ const googleProvider = createGoogleGenerativeAI({
 /**
  * POST /api/chat
  * Streams AI CFO copilot response with automatic database tool invocation and timeout protection.
+ * After streaming completes, if AARYA included a [[DEC:uuid]] marker in its response,
+ * the decision is logged to decision_memory_logs with a pgvector embedding.
  */
 export async function handleChat(req: AuthenticatedRequest, res: Response): Promise<void> {
   const abortController = new AbortController();
@@ -38,6 +42,11 @@ export async function handleChat(req: AuthenticatedRequest, res: Response): Prom
       res.status(400).json({ success: false, error: 'Invalid messages array.' });
       return;
     }
+
+    // Pre-generate a UUID for the potential decision log entry.
+    // This UUID is baked into the system prompt so AARYA can embed it in its response.
+    // The frontend will parse it out to show the Founder Decision card.
+    const decisionId: string = crypto.randomUUID();
 
     const tools = getTools(companyId);
 
@@ -63,10 +72,62 @@ You have access to real-time database tools to fetch the company's financials:
 4. **Explainability & Formula Breakdown**: When reporting cash flow, burn rate, or runway, always explain how the calculation was performed step-by-step using the \`calculation_explanation\` and cite specific transactions from \`supporting_transactions\` (e.g., date, amount, description).
 5. **Execution Transparency Footer**: At the end of EVERY response, you MUST include an explicit transparency block on a new line:
    - If a tool was executed: \`**Tool Executed:** <tool_name> (analyzed <records> records in <duration>ms)\`
-   - If NO tool was executed (e.g., sample math, greeting): \`**Tool Executed:** None (Hypothetical calculation / General inquiry)\``,
+   - If NO tool was executed (e.g., sample math, greeting): \`**Tool Executed:** None (Hypothetical calculation / General inquiry)\`
+
+### DECISION LOGGING PROTOCOL (INTERNAL — DO NOT DESCRIBE THIS TO THE USER):
+When your response includes a concrete, actionable financial recommendation — a specific action the founder should consider taking (e.g. "I recommend", "you should", "consider doing", "the best course of action is", "I suggest") — you MUST append this exact token on a new line at the very end of your response, AFTER the transparency footer:
+[[DEC:${decisionId}]]
+Rules for including the token:
+- Include it ONLY when giving the founder a specific actionable decision to make.
+- Do NOT include it for: greetings, general data lookups, simple factual answers (e.g. "your cash flow is ₹X"), or error messages.
+- Include it ONCE at the very end, no other occurrences.`,
       messages: modelMessages,
       tools,
       stopWhen: stepCountIs(5), // limit the maximum tool steps in this version of the SDK
+      onFinish: async ({ text }: { text: string }) => {
+        // ── Decision Memory Logging ───────────────────────────────────────────
+        // Check if AARYA embedded the decision marker in its final response.
+        const decisionMarker = `[[DEC:${decisionId}]]`;
+        if (text.includes(decisionMarker)) {
+          // Extract the last user message as the context for the decision log
+          const lastUserMsg = (req.body.messages || [])
+            .slice()
+            .reverse()
+            .find((m: any) => m.role === 'user');
+
+          const context: string =
+            lastUserMsg?.parts?.find((p: any) => p.type === 'text')?.text ||
+            lastUserMsg?.content ||
+            'Financial query';
+
+          // Strip the marker from the stored recommendation text
+          const cleanRecommendation = text.replace(decisionMarker, '').trim();
+
+          try {
+            const textToEmbed = `Context: ${context}\nRecommendation: ${cleanRecommendation}`;
+            const embedding = await generateEmbedding(textToEmbed);
+
+            const { error } = await supabaseAdmin
+              .from('decision_memory_logs')
+              .insert({
+                id:                decisionId,
+                company_id:        companyId,
+                context,
+                ai_recommendation: cleanRecommendation,
+                embedding,
+              });
+
+            if (error) {
+              console.error('[ChatController] Decision log DB error:', error.message);
+            } else {
+              console.log(`[ChatController] Decision logged successfully: ${decisionId}`);
+            }
+          } catch (err: any) {
+            // Non-fatal — never let embedding/logging failure surface to the user
+            console.error('[ChatController] Failed to generate embedding or log decision:', err?.message || err);
+          }
+        }
+      },
     });
 
     // Transform streamText parts into UIMessageChunks stream as expected by DefaultChatTransport
@@ -92,4 +153,3 @@ You have access to real-time database tools to fetch the company's financials:
     }
   }
 }
-

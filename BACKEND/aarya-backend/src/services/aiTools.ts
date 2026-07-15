@@ -70,6 +70,23 @@ export const getTools = (companyId: string) => ({
         const duration = Date.now() - startTime;
         console.log(`[AARYA Tool Tracing] Completed 'get_cash_flow' in ${duration}ms (${txs.length} records analyzed).`);
 
+        // ── Non-blocking snapshot persist ─────────────────────────────────────
+        // Convert the runway string ("25.3", "999+", "0.0") to a numeric value.
+        const runwayNum = runway === '999+' ? 999 : parseFloat(runway as string);
+        supabaseAdmin
+          .from('financial_state_snapshots')
+          .insert({
+            company_id:    companyId,
+            runway_months: isNaN(runwayNum) ? null : runwayNum,
+            net_cash_flow: netCashFlow,
+            snapshot_date: new Date().toISOString().split('T')[0],
+          })
+          .then((result) => {
+            if (result.error) console.error('[AARYA SnapshotSave] DB error:', result.error.message);
+            else              console.log('[AARYA SnapshotSave] Snapshot saved for company:', companyId);
+          })
+          .catch((err: unknown) => console.error('[AARYA SnapshotSave] Unexpected error:', err));
+
         return {
           total_liquidity: netCashFlow,
           total_cash_in: cashIn,
