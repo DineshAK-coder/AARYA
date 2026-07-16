@@ -81,11 +81,13 @@ export const getTools = (companyId: string) => ({
             net_cash_flow: netCashFlow,
             snapshot_date: new Date().toISOString().split('T')[0],
           })
-          .then((result) => {
-            if (result.error) console.error('[AARYA SnapshotSave] DB error:', result.error.message);
-            else              console.log('[AARYA SnapshotSave] Snapshot saved for company:', companyId);
-          })
-          .catch((err: unknown) => console.error('[AARYA SnapshotSave] Unexpected error:', err));
+          .then(
+            (result) => {
+              if (result.error) console.error('[AARYA SnapshotSave] DB error:', result.error.message);
+              else              console.log('[AARYA SnapshotSave] Snapshot saved for company:', companyId);
+            },
+            (err: unknown) => console.error('[AARYA SnapshotSave] Unexpected error:', err)
+          );
 
         return {
           total_liquidity: netCashFlow,

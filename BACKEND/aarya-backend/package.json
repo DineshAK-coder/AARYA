@@ -6,7 +6,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsup src/server.ts --format esm --dts --out-dir dist",
+    "build": "tsup",
     "start": "node dist/server.js",
     "lint": "tsc --noEmit"
   },

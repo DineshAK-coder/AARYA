@@ -150,6 +150,7 @@ export async function searchDecisions(
     res.json({ success: true, data: data ?? [] });
   } catch (err) {
     next(err);
+  }
 }
 
 // ============================================================
@@ -160,7 +161,7 @@ export async function searchDecisions(
 export async function debugSearchDecisions(
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): Promise<void> {
   try {
     const query = (req.query.query as string) || 'cash flow';
