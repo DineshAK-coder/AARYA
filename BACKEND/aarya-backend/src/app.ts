@@ -21,7 +21,7 @@ const app = express();
 // ============================================================
 
 // Helmet sets secure HTTP headers
-app.use(helmet());
+app.use((helmet as unknown as () => express.RequestHandler)());
 
 // Universal CORS configuration (reflects request origin dynamically with credentials support)
 app.use(
