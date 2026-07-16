@@ -519,12 +519,6 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
               disabled={isLoading || !input.trim()}
               className="px-4 h-9 rounded-[24px] bg-gradient-to-r from-[#D988A1] to-[#8A5A7B] text-white flex items-center justify-center hover:scale-[1.03] active:scale-[0.97] transition-all disabled:opacity-40 shadow-md shadow-[#8A5A7B]/20"
             >
-            <button
-              type="submit"
-              id="chat-send-btn"
-              disabled={isLoading || !input.trim()}
-              className="px-4 h-9 rounded-[24px] bg-gradient-to-r from-[#D988A1] to-[#8A5A7B] text-white flex items-center justify-center hover:scale-[1.03] active:scale-[0.97] transition-all disabled:opacity-40 shadow-md shadow-[#8A5A7B]/20"
-            >
               <Send className="w-3.5 h-3.5" />
             </button>
           </form>
