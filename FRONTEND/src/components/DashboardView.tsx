@@ -28,7 +28,7 @@ import {
   Pie
 } from "recharts";
 import { BusinessState, LedgerItem, Invoice, Activity } from "../types";
-import { getTransactions } from "../services/apiClient";
+import { useFinancials } from "../context/FinancialContext";
 
 interface DashboardProps {
   state: BusinessState;
@@ -48,56 +48,14 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
     setPrompt("");
   };
 
-  // ── Payables & Receivables from Backend ────────────────────────────────────
-  // Derived from ledger as fallback, replaced with real API values once loaded
-  const ledgerReceivables = state.ledger
-    .filter(item => item.amount > 0)
-    .reduce((sum, item) => sum + item.amount, 0);
-
-  const ledgerPayables = state.ledger
-    .filter(item => item.amount < 0)
-    .reduce((sum, item) => sum + Math.abs(item.amount), 0);
-
-  const [receivables, setReceivables] = useState<number>(ledgerReceivables);
-  const [payables, setPayables] = useState<number>(ledgerPayables);
-  const [financialsLoading, setFinancialsLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchFinancials() {
-      setFinancialsLoading(true);
-      try {
-        const [incomeRes, expenseRes] = await Promise.all([
-          getTransactions({ transaction_type: "income", limit: 500 }) as Promise<any>,
-          getTransactions({ transaction_type: "expense", limit: 500 }) as Promise<any>,
-        ]);
-        if (cancelled) return;
-        const incomeTotal = (incomeRes?.data?.data ?? []).reduce(
-          (sum: number, tx: any) => sum + Math.abs(Number(tx.amount) || 0), 0
-        );
-        const expenseTotal = (expenseRes?.data?.data ?? []).reduce(
-          (sum: number, tx: any) => sum + Math.abs(Number(tx.amount) || 0), 0
-        );
-        setReceivables(incomeTotal > 0 ? incomeTotal : ledgerReceivables);
-        setPayables(expenseTotal > 0 ? expenseTotal : ledgerPayables);
-      } catch (err) {
-        console.warn("[Dashboard] Could not fetch financials from API, using ledger fallback:", err);
-        setReceivables(ledgerReceivables);
-        setPayables(ledgerPayables);
-      } finally {
-        if (!cancelled) setFinancialsLoading(false);
-      }
-    }
-    fetchFinancials();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.companyId]);
-
-  // Runway Calculation: derived from live receivables / simulated monthly burn
-  const simulatedMonthlyBurn = 150000;
-  const runwayMonths = receivables > 0
-    ? (receivables / simulatedMonthlyBurn).toFixed(1)
-    : "0.0";
+  // ── Payables & Receivables consumed from Shared FinancialContext ───────────
+  const { 
+    receivables, 
+    payables, 
+    netCashFlow, 
+    runwayMonthsFormatted: runwayMonths, 
+    loading: financialsLoading 
+  } = useFinancials();
 
   // Simulated cash flow timeline for chart (4 weeks) — uses live receivables
   const chartBase = receivables > 0 ? receivables : 0;
@@ -245,10 +203,12 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
             </div>
           </div>
           <div className="mt-4">
-            <div className="text-3xl font-heading font-bold text-neutral-900 dark:text-white tracking-tight tabular-nums text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+            <div className={`text-3xl font-heading font-bold tracking-tight tabular-nums flex items-center gap-2 ${
+              netCashFlow >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-[#FF3B30]"
+            }`}>
               {financialsLoading
                 ? <span className="inline-block h-9 w-32 bg-neutral-200 dark:bg-neutral-700/60 rounded-xl animate-pulse" />
-                : <span>{receivables - payables >= 0 ? "+" : ""}{state.currencySymbol}{Math.abs(receivables - payables).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
+                : <span>{netCashFlow >= 0 ? "+" : "-"}{state.currencySymbol}{Math.abs(netCashFlow).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span>
               }
               <div className="relative group/tooltip inline-block cursor-pointer">
                 <Sparkles className="w-4 h-4 text-[#D988A1] opacity-75 hover:opacity-100 transition-all hover:scale-110" />
@@ -258,12 +218,12 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
                     <Sparkles className="w-3.5 h-3.5 animate-pulse" />
                     <span>Explain Your Math</span>
                   </div>
-                  <span className="text-white/70 font-normal">Calculated as: <span className="font-mono text-emerald-400">Total Receivables − Total Payables</span> from your uploaded transactions.</span>
+                  <span className="text-white/70 font-normal">Calculated as: <span className={`font-mono ${netCashFlow >= 0 ? "text-emerald-400" : "text-[#FF3B30]"}`}>Total Receivables − Total Payables</span> from your uploaded transactions.</span>
                 </div>
               </div>
             </div>
             <div className="text-[10px] text-neutral-400 dark:text-[#9E9AA7] mt-1 font-mono">
-              Net balance variance
+              {netCashFlow >= 0 ? "Net cash surplus" : "Net cash deficit (Payables > Receivables)"}
             </div>
           </div>
         </div>

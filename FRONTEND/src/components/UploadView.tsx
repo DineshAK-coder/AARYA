@@ -3,6 +3,7 @@ import { Upload, FileSpreadsheet, Check, AlertCircle, RefreshCw, Eye, XCircle } 
 import { motion } from "motion/react";
 import { BusinessState, LedgerItem } from "../types";
 import { uploadTransactions } from "../services/apiClient";
+import { useFinancials } from "../context/FinancialContext";
 
 interface UploadViewProps {
   state: BusinessState;
@@ -11,6 +12,7 @@ interface UploadViewProps {
 }
 
 export const UploadView: React.FC<UploadViewProps> = ({ state, logActivity, addLedgerItem }) => {
+  const { refreshFinancials } = useFinancials();
   const [dragActive, setDragActive] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [uploadState, setUploadState] = useState<"idle" | "uploading" | "parsed" | "integrated" | "error">("idle");
@@ -110,6 +112,7 @@ export const UploadView: React.FC<UploadViewProps> = ({ state, logActivity, addL
         amount: parsedRows.reduce((acc, curr) => acc + (curr.type === "Receivable" ? curr.amount : 0), 0)
       });
 
+      refreshFinancials();
       setUploadState("integrated");
     }, 1200);
   };

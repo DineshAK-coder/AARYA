@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { BusinessState } from "../types";
 import { postChat, createDecision } from "../services/apiClient";
+import { useFinancials } from "../context/FinancialContext";
 
 interface FounderSummaryViewProps {
   state: BusinessState;
@@ -35,14 +36,12 @@ interface StrategicDirective {
 }
 
 export const FounderSummaryView: React.FC<FounderSummaryViewProps> = ({ state }) => {
-  // ── Baseline financial calculations ────────────────────────────────────────
-  const receivables = state.ledger
-    .filter(item => item.amount > 0)
-    .reduce((sum, item) => sum + item.amount, 0);
-
-  const payables = state.ledger
-    .filter(item => item.amount < 0)
-    .reduce((sum, item) => sum + Math.abs(item.amount), 0);
+  // ── Baseline financial metrics consumed from Shared FinancialContext ───────
+  const { 
+    receivables, 
+    payables, 
+    loading: financialsLoading 
+  } = useFinancials();
 
   // ── Interactive Burn & Inflow Simulation State ─────────────────────────────
   const [customBurnRate, setCustomBurnRate] = useState<number>(150000);
@@ -94,7 +93,8 @@ export const FounderSummaryView: React.FC<FounderSummaryViewProps> = ({ state })
 
   // ── Dynamic Runway Metrics ─────────────────────────────────────────────────
   const netMonthlyBurn = Math.max(1, customBurnRate - customInflow);
-  const runwayMonthsNum = state.startingBalance > 0 ? (state.startingBalance / netMonthlyBurn) : 0;
+  const cashPool = state.startingBalance > 0 ? state.startingBalance : receivables;
+  const runwayMonthsNum = cashPool > 0 ? (cashPool / netMonthlyBurn) : 0;
   const runwayMonthsFormatted = runwayMonthsNum.toFixed(1);
   const runwayStatus = runwayMonthsNum >= 8 ? "SECURE" : runwayMonthsNum >= 4 ? "WARNING" : "CRITICAL";
 

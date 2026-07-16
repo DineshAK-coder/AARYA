@@ -15,6 +15,7 @@ import { SettingsView } from "./components/SettingsView";
 import { UploadView } from "./components/UploadView";
 import { FounderSummaryView } from "./components/FounderSummaryView";
 import { MemorySearchView } from "./components/MemorySearchView";
+import { FinancialProvider } from "./context/FinancialContext";
 import { supabase } from "./services/apiClient";
 
 export default function App() {
@@ -344,114 +345,116 @@ export default function App() {
 
   // CORE APPLICATION LAYOUT (Sidebar + Main Content Panel + BottomNav)
   return (
-    <div 
-      id="app-workspace-layout" 
-      className="flex h-screen overflow-hidden relative font-sans transition-colors duration-300 bg-gradient-to-br from-[#0f0c29] via-[#15112e] to-[#302b63] text-[#9E9AA7]"
-    >
-      {/* Abstract, blurred, glowing radial gradients in the background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute -top-40 left-1/4 w-[600px] h-[600px] rounded-full bg-[#D988A1] opacity-[0.24] blur-[150px]"></div>
-        <div className="absolute top-1/3 right-1/4 w-[700px] h-[700px] rounded-full bg-[#8A5A7B] opacity-[0.26] blur-[160px]"></div>
-        <div className="absolute -bottom-20 left-1/3 w-[500px] h-[500px] rounded-full bg-[#D988A1] opacity-[0.18] blur-[130px]"></div>
-        <div className="absolute top-1/2 left-10 w-[300px] h-[300px] rounded-full bg-[#8A5A7B] opacity-[0.15] blur-[100px]"></div>
-      </div>
-      
-      {/* Desktop Left Sidebar Navigation */}
-      <Sidebar 
-        currentView={currentView}
-        setView={setView}
-        businessName={state.businessName}
-        onLogout={handleLogout}
-      />
-
-      {/* Main Content (Center, Flexible) + AI Copilot Panel (Right, 350px) Layout */}
-      <div className="flex-1 flex overflow-hidden min-w-0 relative">
+    <FinancialProvider state={state}>
+      <div 
+        id="app-workspace-layout" 
+        className="flex h-screen overflow-hidden relative font-sans transition-colors duration-300 bg-gradient-to-br from-[#0f0c29] via-[#15112e] to-[#302b63] text-[#9E9AA7]"
+      >
+        {/* Abstract, blurred, glowing radial gradients in the background */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+          <div className="absolute -top-40 left-1/4 w-[600px] h-[600px] rounded-full bg-[#D988A1] opacity-[0.24] blur-[150px]"></div>
+          <div className="absolute top-1/3 right-1/4 w-[700px] h-[700px] rounded-full bg-[#8A5A7B] opacity-[0.26] blur-[160px]"></div>
+          <div className="absolute -bottom-20 left-1/3 w-[500px] h-[500px] rounded-full bg-[#D988A1] opacity-[0.18] blur-[130px]"></div>
+          <div className="absolute top-1/2 left-10 w-[300px] h-[300px] rounded-full bg-[#8A5A7B] opacity-[0.15] blur-[100px]"></div>
+        </div>
         
-        {/* Main core center view area */}
-        <main id="app-main-panel" className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-          {currentView === "dashboard" && (
-            <DashboardView 
-              state={state}
-              onAskNova={handleAskNovaQuick}
-              onQuickViewCustomer={handleQuickViewCustomer}
-              setView={setView}
-            />
-          )}
+        {/* Desktop Left Sidebar Navigation */}
+        <Sidebar 
+          currentView={currentView}
+          setView={setView}
+          businessName={state.businessName}
+          onLogout={handleLogout}
+        />
 
-          {currentView === "upload" && (
-            <UploadView 
-              state={state}
-              logActivity={logActivity}
-              addLedgerItem={addLedgerItem}
-            />
-          )}
+        {/* Main Content (Center, Flexible) + AI Copilot Panel (Right, 350px) Layout */}
+        <div className="flex-1 flex overflow-hidden min-w-0 relative">
+          
+          {/* Main core center view area */}
+          <main id="app-main-panel" className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+            {currentView === "dashboard" && (
+              <DashboardView 
+                state={state}
+                onAskNova={handleAskNovaQuick}
+                onQuickViewCustomer={handleQuickViewCustomer}
+                setView={setView}
+              />
+            )}
 
-          {currentView === "founder" && (
-            <FounderSummaryView 
-              state={state}
-            />
-          )}
+            {currentView === "upload" && (
+              <UploadView 
+                state={state}
+                logActivity={logActivity}
+                addLedgerItem={addLedgerItem}
+              />
+            )}
 
-          {/* Always keep CfoChatView mounted so switching between tabs does NOT unmount the component and vanish the chat log */}
-          <div className={currentView === "chat" ? "flex-1 flex flex-col min-w-0 h-full overflow-hidden" : "hidden"}>
-            <CfoChatView 
-              state={state}
-              currencySymbol={state.currencySymbol}
-              preseededPrompt={preseededPrompt}
-              clearPreseededPrompt={() => setPreseededPrompt(null)}
-            />
-          </div>
+            {currentView === "founder" && (
+              <FounderSummaryView 
+                state={state}
+              />
+            )}
 
-          {currentView === "memory" && (
-            <MemorySearchView />
-          )}
+            {/* Always keep CfoChatView mounted so switching between tabs does NOT unmount the component and vanish the chat log */}
+            <div className={currentView === "chat" ? "flex-1 flex flex-col min-w-0 h-full overflow-hidden" : "hidden"}>
+              <CfoChatView 
+                state={state}
+                currencySymbol={state.currencySymbol}
+                preseededPrompt={preseededPrompt}
+                clearPreseededPrompt={() => setPreseededPrompt(null)}
+              />
+            </div>
 
-          {currentView === "ledger" && (
-            <LedgerView 
-              state={state}
-              addLedgerItem={addLedgerItem}
-              updateLedgerItemAmount={updateLedgerItemAmount}
-              logActivity={logActivity}
-              selectedCustomerName={quickCustomerName}
-              clearSelectedCustomer={() => setQuickCustomerName("")}
-            />
-          )}
+            {currentView === "memory" && (
+              <MemorySearchView />
+            )}
 
-          {currentView === "billing" && (
-            <BillingView 
-              state={state}
-              addInvoice={addInvoice}
-              logActivity={logActivity}
-            />
-          )}
+            {currentView === "ledger" && (
+              <LedgerView 
+                state={state}
+                addLedgerItem={addLedgerItem}
+                updateLedgerItemAmount={updateLedgerItemAmount}
+                logActivity={logActivity}
+                selectedCustomerName={quickCustomerName}
+                clearSelectedCustomer={() => setQuickCustomerName("")}
+              />
+            )}
 
-          {currentView === "intelligence" && (
-            <RevenueIntelView 
-              state={state}
-            />
-          )}
+            {currentView === "billing" && (
+              <BillingView 
+                state={state}
+                addInvoice={addInvoice}
+                logActivity={logActivity}
+              />
+            )}
 
-          {currentView === "audit" && (
-            <AuditTrailView 
-              state={state}
-            />
-          )}
+            {currentView === "intelligence" && (
+              <RevenueIntelView 
+                state={state}
+              />
+            )}
 
-          {currentView === "settings" && (
-            <SettingsView 
-              state={state}
-              onUpdateBusiness={updateBusinessMetadata}
-              onLogout={handleLogout}
-            />
-          )}
-        </main>
+            {currentView === "audit" && (
+              <AuditTrailView 
+                state={state}
+              />
+            )}
+
+            {currentView === "settings" && (
+              <SettingsView 
+                state={state}
+                onUpdateBusiness={updateBusinessMetadata}
+                onLogout={handleLogout}
+              />
+            )}
+          </main>
+        </div>
+
+        {/* Mobile Bottom Tab Navigation bar */}
+        <BottomNav 
+          currentView={currentView}
+          setView={setView}
+        />
       </div>
-
-      {/* Mobile Bottom Tab Navigation bar */}
-      <BottomNav 
-        currentView={currentView}
-        setView={setView}
-      />
-    </div>
+    </FinancialProvider>
   );
 }
