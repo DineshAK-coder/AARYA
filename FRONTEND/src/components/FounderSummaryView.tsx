@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { 
   TrendingUp, 
   Award, 
-  Calendar, 
   AlertTriangle, 
   ShieldCheck, 
   Zap, 
@@ -48,35 +47,10 @@ export const FounderSummaryView: React.FC<FounderSummaryViewProps> = ({ state })
   const [customInflow, setCustomInflow] = useState<number>(0);
   const [showSimulator, setShowSimulator] = useState<boolean>(false);
 
-  // ── Interactive Statutory Tax Checklist State ──────────────────────────────
-  const [taxChecklist, setTaxChecklist] = useState<Record<string, boolean>>(() => {
-    try {
-      const saved = localStorage.getItem("aarya_tax_checklist");
-      return saved ? JSON.parse(saved) : { gstr1: false, tds: true, pf: false };
-    } catch {
-      return { gstr1: false, tds: true, pf: false };
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("aarya_tax_checklist", JSON.stringify(taxChecklist));
-    } catch {
-      // ignore localStorage errors
-    }
-  }, [taxChecklist]);
-
   // ── AI Executive Synthesis & Directives State ──────────────────────────────
   const [isGeneratingAI, setIsGeneratingAI] = useState<boolean>(false);
   const [aiSummaryText, setAiSummaryText] = useState<string | null>(null);
   const [directives, setDirectives] = useState<StrategicDirective[]>([
-    {
-      id: "msme-audit",
-      title: "MSME Section 43B(h) Audit Passed",
-      text: "Your current liabilities check against the ledger confirms no registered Indian MSME micro-vendors are overdue past 45 days. Excellent corporate compliance hygiene!",
-      category: "compliance",
-      badge: "Compliance Verified"
-    },
     {
       id: "dso-buffer",
       title: "Receivables Optimization Buffer",
@@ -104,10 +78,6 @@ export const FounderSummaryView: React.FC<FounderSummaryViewProps> = ({ state })
     .toLocaleDateString("en-IN", { month: "short", year: "numeric" });
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleToggleTax = (key: string) => {
-    setTaxChecklist(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
   const handleGenerateAIBrief = async () => {
     setIsGeneratingAI(true);
     setAiSummaryText(null);
@@ -183,8 +153,6 @@ export const FounderSummaryView: React.FC<FounderSummaryViewProps> = ({ state })
     }
   };
 
-  const completedTaxCount = Object.values(taxChecklist).filter(Boolean).length;
-
   return (
     <div id="founder-summary-container" className="flex-1 overflow-y-auto px-4 md:px-8 py-6 pb-24 text-neutral-900 bg-[#EAE7E4] dark:bg-[#121212] dark:text-[#f4f4f5]">
       
@@ -198,7 +166,7 @@ export const FounderSummaryView: React.FC<FounderSummaryViewProps> = ({ state })
             Founder Financial Summary
           </h2>
           <p className="text-sm text-neutral-500 mt-1">
-            Interactive executive brief, runway simulator, and statutory tax tracker for Indian corporate leaders.
+            Interactive executive brief and runway simulator for Indian corporate leaders.
           </p>
         </div>
 
@@ -342,8 +310,8 @@ export const FounderSummaryView: React.FC<FounderSummaryViewProps> = ({ state })
         </div>
       )}
 
-      {/* 3 Main Bento Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* 2 Main Bento Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
         {/* Bento Card 1: Runway Health */}
         <div className="bg-white dark:bg-[#1a1a1a] border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
@@ -414,103 +382,6 @@ export const FounderSummaryView: React.FC<FounderSummaryViewProps> = ({ state })
               {campaignStatus === 'success' && <Check className="w-3 h-3" />}
               <span>{campaignStatus === 'success' ? "Campaign Active" : "Trigger DSO Reminders"}</span>
             </button>
-          </div>
-        </div>
-
-        {/* Bento Card 3: Interactive Indian Tax & Statutory Checklist */}
-        <div className="bg-white dark:bg-[#1a1a1a] border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4.5 h-4.5 text-[#FF3B30]" />
-                <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider font-mono">Tax Checklist (Q2 FY26)</h3>
-              </div>
-              <span className="text-[10px] font-mono bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 px-2 py-0.5 rounded font-bold">
-                {completedTaxCount}/3 Done
-              </span>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              {/* GSTR-1 */}
-              <div 
-                onClick={() => handleToggleTax('gstr1')}
-                className="flex items-center justify-between p-2 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800/50 cursor-pointer transition border border-transparent hover:border-neutral-200 dark:hover:border-neutral-800"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className={`w-4 h-4 rounded flex items-center justify-center border transition ${
-                    taxChecklist.gstr1 
-                      ? 'bg-emerald-500 border-emerald-500 text-white' 
-                      : 'border-neutral-300 dark:border-neutral-700'
-                  }`}>
-                    {taxChecklist.gstr1 && <Check className="w-3 h-3 stroke-[3]" />}
-                  </div>
-                  <div>
-                    <span className={`font-semibold ${taxChecklist.gstr1 ? 'line-through text-neutral-400' : 'text-neutral-900 dark:text-white'}`}>
-                      GSTR-1 GST Return
-                    </span>
-                    <p className="text-[10px] text-neutral-400">Outward Supplies Sales Ledger</p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-mono bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 px-2 py-0.5 rounded font-bold">
-                  July 11
-                </span>
-              </div>
-
-              {/* TDS Challan 281 */}
-              <div 
-                onClick={() => handleToggleTax('tds')}
-                className="flex items-center justify-between p-2 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800/50 cursor-pointer transition border border-transparent hover:border-neutral-200 dark:hover:border-neutral-800"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className={`w-4 h-4 rounded flex items-center justify-center border transition ${
-                    taxChecklist.tds 
-                      ? 'bg-emerald-500 border-emerald-500 text-white' 
-                      : 'border-neutral-300 dark:border-neutral-700'
-                  }`}>
-                    {taxChecklist.tds && <Check className="w-3 h-3 stroke-[3]" />}
-                  </div>
-                  <div>
-                    <span className={`font-semibold ${taxChecklist.tds ? 'line-through text-neutral-400' : 'text-neutral-900 dark:text-white'}`}>
-                      TDS Deposit (Challan 281)
-                    </span>
-                    <p className="text-[10px] text-neutral-400">Monthly vendor tax deductions</p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-mono bg-[#FF3B30]/10 text-[#FF3B30] px-2 py-0.5 rounded font-bold">
-                  July 07
-                </span>
-              </div>
-
-              {/* PF & ESIC */}
-              <div 
-                onClick={() => handleToggleTax('pf')}
-                className="flex items-center justify-between p-2 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800/50 cursor-pointer transition border border-transparent hover:border-neutral-200 dark:hover:border-neutral-800"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className={`w-4 h-4 rounded flex items-center justify-center border transition ${
-                    taxChecklist.pf 
-                      ? 'bg-emerald-500 border-emerald-500 text-white' 
-                      : 'border-neutral-300 dark:border-neutral-700'
-                  }`}>
-                    {taxChecklist.pf && <Check className="w-3 h-3 stroke-[3]" />}
-                  </div>
-                  <div>
-                    <span className={`font-semibold ${taxChecklist.pf ? 'line-through text-neutral-400' : 'text-neutral-900 dark:text-white'}`}>
-                      PF & ESIC Returns
-                    </span>
-                    <p className="text-[10px] text-neutral-400">Employee Provident Fund filings</p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-mono bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 px-2 py-0.5 rounded font-bold">
-                  July 15
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="pt-3 border-t border-neutral-100 dark:border-neutral-800 mt-2 flex justify-end">
-            <span className="text-[10px] text-neutral-400 font-mono italic">
-              Click any item to toggle compliance
-            </span>
           </div>
         </div>
 
