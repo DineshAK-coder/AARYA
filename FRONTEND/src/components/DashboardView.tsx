@@ -57,29 +57,97 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
     overdue30DaysCount,
     overdue30DaysTotal,
     transactions = [],
+    snapshots = [],
     loading: financialsLoading 
   } = useFinancials();
 
-  // Simulated cash flow timeline for chart (4 weeks) — uses live receivables
-  const chartBase = receivables > 0 ? receivables : (state.startingBalance > 0 ? state.startingBalance : 15254.37);
-  const chartData = [
-    { name: "Week 1", Balance: chartBase * 0.72 },
-    { name: "Week 2", Balance: chartBase * 0.88 },
-    { name: "Week 3", Balance: chartBase * 0.79 },
-    { name: "Week 4", Balance: chartBase },
-  ];
+  // Runway Performance / Cash Flow timeline chart — dynamically computed from database snapshots and transactions
+  const chartData = useMemo(() => {
+    // 1. Prioritize database financial state snapshots if available
+    if (snapshots.length >= 2) {
+      const sorted = [...snapshots].sort((a, b) => 
+        new Date(a.snapshot_date || a.created_at).getTime() - new Date(b.snapshot_date || b.created_at).getTime()
+      );
+      return sorted.map((snap, idx) => {
+        const dateStr = snap.snapshot_date ? new Date(snap.snapshot_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : `Point ${idx + 1}`;
+        const bal = snap.net_cash_flow !== null && snap.net_cash_flow !== undefined ? Number(snap.net_cash_flow) : (receivables - payables);
+        return { name: dateStr, Balance: bal };
+      });
+    }
 
-  // Invoice Breakdown for Pie Chart — combines backend transactions, local invoices, and graceful fallback
+    // 2. Aggregate from live database transactions chronologically
+    if (transactions.length > 0) {
+      const sortedTxs = [...transactions]
+        .filter(tx => tx.due_date || tx.created_at)
+        .sort((a, b) => new Date(a.due_date || a.created_at).getTime() - new Date(b.due_date || b.created_at).getTime());
+
+      if (sortedTxs.length > 0) {
+        const dateMap = new Map<string, number>();
+        let runningBalance = state.startingBalance > 0 ? state.startingBalance : 0;
+        
+        for (const tx of sortedTxs) {
+          const dt = new Date(tx.due_date || tx.created_at);
+          const dateKey = !isNaN(dt.getTime()) 
+            ? dt.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+            : "Recent";
+          
+          const amt = Math.abs(Number(tx.amount) || 0);
+          if (tx.transaction_type === "income") {
+            runningBalance += amt;
+          } else if (tx.transaction_type === "expense") {
+            runningBalance -= amt;
+          } else {
+            runningBalance += amt;
+          }
+          dateMap.set(dateKey, runningBalance);
+        }
+
+        const points = Array.from(dateMap.entries()).map(([name, Balance]) => ({ name, Balance }));
+        if (points.length >= 2) {
+          if (points.length > 8) {
+            const step = Math.ceil(points.length / 8);
+            const sampled = [];
+            for (let i = 0; i < points.length; i += step) {
+              sampled.push(points[i]);
+            }
+            if (sampled[sampled.length - 1] !== points[points.length - 1]) {
+              sampled.push(points[points.length - 1]);
+            }
+            return sampled;
+          }
+          return points;
+        } else if (points.length === 1) {
+          const singlePoint = points[0];
+          const startBal = state.startingBalance > 0 ? state.startingBalance : singlePoint.Balance * 0.85;
+          return [
+            { name: "Start", Balance: startBal },
+            { name: singlePoint.name, Balance: singlePoint.Balance }
+          ];
+        }
+      }
+    }
+
+    // 3. Graceful fallback only when database has 0 transactions & 0 snapshots
+    const chartBase = receivables > 0 ? receivables : (state.startingBalance > 0 ? state.startingBalance : 15254.37);
+    return [
+      { name: "Week 1", Balance: chartBase * 0.72 },
+      { name: "Week 2", Balance: chartBase * 0.88 },
+      { name: "Week 3", Balance: chartBase * 0.79 },
+      { name: "Week 4", Balance: chartBase },
+    ];
+  }, [snapshots, transactions, receivables, payables, state.startingBalance]);
+
+  // Invoice Breakdown for Pie Chart — prioritizes live database transactions, falling back to local invoices
   const { invoicePaidTotal, invoicePendingTotal, invoiceOverdueTotal } = useMemo(() => {
-    let paid = state.invoices.filter(inv => inv.status === "Paid").reduce((sum, inv) => sum + inv.amount, 0);
-    let pending = state.invoices.filter(inv => inv.status === "Pending").reduce((sum, inv) => sum + inv.amount, 0);
-    let overdue = state.invoices.filter(inv => inv.status === "Overdue").reduce((sum, inv) => sum + inv.amount, 0);
+    let paid = 0;
+    let pending = 0;
+    let overdue = 0;
 
-    // Aggregate from live backend transactions (income / receivables)
+    // 1. Prioritize live backend database transactions (income / receivables)
     if (transactions.length > 0) {
       const now = Date.now();
       for (const tx of transactions) {
-        if (tx.transaction_type === "income") {
+        if (tx.transaction_type === "income" || Number(tx.amount) > 0) {
           const amt = Math.abs(Number(tx.amount) || 0);
           const dueTime = tx.due_date ? new Date(tx.due_date).getTime() : NaN;
           if (tx.status === "Paid" || (!isNaN(dueTime) && dueTime < now - 365 * 24 * 3600 * 1000 && tx.status === "Paid")) {
@@ -91,9 +159,17 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
           }
         }
       }
+      if (paid + pending + overdue > 0) {
+        return { invoicePaidTotal: paid, invoicePendingTotal: pending, invoiceOverdueTotal: overdue };
+      }
     }
 
-    // If still 0, aggregate from state.ledger positive amounts
+    // 2. Fall back to state.invoices if database transactions produced 0 breakdown
+    paid = state.invoices.filter(inv => inv.status === "Paid").reduce((sum, inv) => sum + inv.amount, 0);
+    pending = state.invoices.filter(inv => inv.status === "Pending").reduce((sum, inv) => sum + inv.amount, 0);
+    overdue = state.invoices.filter(inv => inv.status === "Overdue").reduce((sum, inv) => sum + inv.amount, 0);
+
+    // 3. If still 0, aggregate from state.ledger positive amounts
     if (paid === 0 && pending === 0 && overdue === 0 && state.ledger.length > 0) {
       for (const item of state.ledger) {
         if (item.amount > 0) {
@@ -103,14 +179,14 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
       }
     }
 
-    // If still 0 but we have total receivables from API, partition cleanly
+    // 4. If still 0 but we have total receivables from API, partition cleanly
     if (paid === 0 && pending === 0 && overdue === 0 && receivables > 0) {
       overdue = overdue30DaysTotal > 0 ? overdue30DaysTotal : receivables * 0.25;
       pending = Math.max(0, receivables - overdue);
       paid = receivables * 0.3;
     }
 
-    // Graceful sample fallback so the Pie Chart is never blank
+    // 5. Graceful sample fallback so the Pie Chart is never blank
     if (paid === 0 && pending === 0 && overdue === 0) {
       paid = 12500;
       pending = 8400;
@@ -118,7 +194,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
     }
 
     return { invoicePaidTotal: paid, invoicePendingTotal: pending, invoiceOverdueTotal: overdue };
-  }, [state.invoices, transactions, state.ledger, receivables, overdue30DaysTotal]);
+  }, [transactions, state.invoices, state.ledger, receivables, overdue30DaysTotal]);
 
   const pieData = [
     { name: "Paid", value: invoicePaidTotal, color: "#D988A1" },
@@ -126,22 +202,19 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
     { name: "Overdue", value: invoiceOverdueTotal, color: "#EF4444" },
   ];
 
-  // Customer Exposure Breakdown for Bar Chart — aggregates live backend/ledger data with graceful fallback
+  // Customer Exposure Breakdown for Bar Chart — prioritizes live database transactions before fallback
   const barData = useMemo(() => {
-    // 1. Check state.ledger
-    const ledgerItems = state.ledger
-      .filter(item => item.amount > 0)
-      .map(item => ({ name: item.name.split(" ")[0], Amount: item.amount }));
-    if (ledgerItems.length > 0) return ledgerItems.slice(0, 5);
-
-    // 2. Aggregate from live backend income transactions
+    // 1. Prioritize live database income/receivable transactions
     if (transactions.length > 0) {
       const exposureMap = new Map<string, number>();
       for (const tx of transactions) {
-        if (tx.transaction_type === "income") {
-          const name = (tx.description || tx.customer || "Account").trim().split(" ")[0] || "Client";
+        if (tx.transaction_type === "income" || Number(tx.amount) > 0) {
+          const rawName = (tx.description || tx.customer || "Account").trim();
+          const name = rawName.length > 18 ? `${rawName.slice(0, 16)}…` : rawName || "Client";
           const amt = Math.abs(Number(tx.amount) || 0);
-          exposureMap.set(name, (exposureMap.get(name) || 0) + amt);
+          if (amt > 0) {
+            exposureMap.set(name, (exposureMap.get(name) || 0) + amt);
+          }
         }
       }
       const aggregated = Array.from(exposureMap.entries())
@@ -150,6 +223,12 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
         .slice(0, 5);
       if (aggregated.length > 0) return aggregated;
     }
+
+    // 2. Check state.ledger if database transactions had no customer exposure
+    const ledgerItems = state.ledger
+      .filter(item => item.amount > 0)
+      .map(item => ({ name: item.name.split(" ")[0], Amount: item.amount }));
+    if (ledgerItems.length > 0) return ledgerItems.slice(0, 5);
 
     // 3. Aggregate from state.invoices
     if (state.invoices.length > 0) {
@@ -174,7 +253,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
       { name: "Apex", Amount: 3100 },
       { name: "Nexus", Amount: 2400 },
     ];
-  }, [state.ledger, transactions, state.invoices]);
+  }, [transactions, state.ledger, state.invoices]);
 
 
   return (
@@ -406,7 +485,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
                   fontSize={9}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(val) => `${state.currencySymbol}${(val / 1000).toFixed(0)}k`}
+                  tickFormatter={(val) => Math.abs(val) >= 1000 ? `${state.currencySymbol}${(val / 1000).toFixed(0)}k` : `${state.currencySymbol}${Number(val).toFixed(0)}`}
                 />
                 <Tooltip 
                   contentStyle={{ backgroundColor: "#1F1D2B", borderColor: "rgba(217, 136, 161, 0.2)", borderRadius: "16px", color: "#FFFFFF", fontSize: "11px", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.3)" }}
@@ -563,7 +642,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
                   fontSize={9} 
                   tickLine={false} 
                   axisLine={false}
-                  tickFormatter={(val) => `${state.currencySymbol}${(val / 1000).toFixed(0)}k`}
+                  tickFormatter={(val) => Math.abs(val) >= 1000 ? `${state.currencySymbol}${(val / 1000).toFixed(0)}k` : `${state.currencySymbol}${Number(val).toFixed(0)}`}
                 />
                 <YAxis 
                   type="category" 
@@ -572,7 +651,7 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
                   fontSize={10} 
                   tickLine={false} 
                   axisLine={false} 
-                  width={65}
+                  width={80}
                 />
                 <Tooltip 
                   contentStyle={{ backgroundColor: "#1F1D2B", borderColor: "rgba(217, 136, 161, 0.2)", borderRadius: "16px", color: "#FFFFFF", fontSize: "11px" }}
