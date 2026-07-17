@@ -31,9 +31,7 @@ export const Sidebar: React.FC<NavProps> = ({ currentView, setView, businessName
     <aside id="desktop-sidebar" className="hidden lg:flex flex-col w-[250px] bg-[#13111C] border-r border-neutral-200/10 dark:border-neutral-800/60 h-screen sticky top-0 text-white select-none">
       {/* Brand Logo */}
       <div className="p-6 border-b border-neutral-200/10 dark:border-neutral-800/60 flex items-center gap-3 bg-[#1F1D2B]/40 backdrop-blur-md">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#D988A1] to-[#8A5A7B] flex items-center justify-center text-white font-bold text-lg shadow-md shadow-[#D988A1]/20">
-          A
-        </div>
+        <img src="/logo.jpg" alt="AARYA Logo" className="w-10 h-10 rounded-xl object-cover shadow-md shadow-[#D988A1]/20" />
         <div>
           <h1 className="font-heading font-bold text-lg tracking-wider text-white flex items-center gap-1">
             AARYA

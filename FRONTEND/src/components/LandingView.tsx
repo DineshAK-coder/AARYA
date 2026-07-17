@@ -44,9 +44,7 @@ export const LandingView: React.FC<LandingProps> = ({ onStart, loggedIn }) => {
       <header className="w-full max-w-7xl mx-auto px-6 md:px-12 py-6 flex items-center justify-between relative z-30">
         <div className="flex items-center gap-2.5">
           {/* Brand Accent Logo Icon */}
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#D988A1] to-[#8A5A7B] flex items-center justify-center shadow-lg shadow-[#D988A1]/10">
-            <Sparkle className="w-4 h-4 text-white stroke-[2.5]" />
-          </div>
+          <img src="/logo.jpg" alt="AARYA Logo" className="w-9 h-9 rounded-xl object-cover shadow-lg shadow-[#D988A1]/10" />
           <span className="font-heading font-black text-xl tracking-wider text-white">AARYA</span>
         </div>
         

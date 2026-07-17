@@ -101,9 +101,7 @@ export const AuthView: React.FC<AuthProps> = ({ onSuccess, onBack, initialEmail 
         <div className="p-8 md:p-10">
           {/* Logo + Title */}
           <div className="text-center mb-8">
-            <div className="inline-flex w-12 h-12 rounded-xl bg-[#141414] text-[#FF3B30] items-center justify-center font-bold text-2xl mb-3 shadow-md">
-              A
-            </div>
+            <img src="/logo.jpg" alt="AARYA Logo" className="inline-flex w-14 h-14 rounded-2xl object-cover mb-3 shadow-md" />
             <h1 className="font-heading font-bold text-2xl tracking-tight text-[#141414]">
               {mode === "login" ? "Welcome back" : "Create your account"}
             </h1>

@@ -332,9 +332,7 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
       {/* Chat header bar */}
       <div className="px-4 py-4 border-b border-neutral-200 dark:border-neutral-800/60 bg-white/95 dark:bg-[#1F1D2B]/95 backdrop-blur-md flex items-center justify-between z-10 shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#D988A1] to-[#8A5A7B] flex items-center justify-center text-white shadow-md shadow-[#D988A1]/20">
-            <Sparkles className="w-4.5 h-4.5 animate-pulse" />
-          </div>
+          <img src="/logo.jpg" alt="AARYA Logo" className="w-10 h-10 rounded-xl object-cover shadow-md shadow-[#D988A1]/20" />
           <div>
             <h2 className="font-heading font-bold text-xs tracking-tight text-neutral-900 dark:text-white flex items-center gap-1.5">
               Ask AARYA <span className="text-[8px] bg-gradient-to-r from-[#D988A1] to-[#8A5A7B] text-white px-1.5 py-0.5 rounded font-mono font-bold uppercase tracking-wider">COPILOT</span>
