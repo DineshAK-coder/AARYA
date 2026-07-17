@@ -18,6 +18,7 @@ interface CfoChatProps {
 // Founder Decision card so the founder can log their actual choice.
 
 const DECISION_MARKER_REGEX = /\[\[DEC:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\]/i;
+const TOOL_EXECUTED_REGEX = /(\r?\n)*(\*\*)?Tool Executed:?(\*\*)?.*(?:\r?\n|$)/gi;
 
 function parseMessageText(parts: any[]): { displayText: string; decisionId: string | null } {
   let displayText = "";
@@ -25,13 +26,14 @@ function parseMessageText(parts: any[]): { displayText: string; decisionId: stri
 
   for (const part of parts ?? []) {
     if (part.type === "text") {
-      const match = part.text.match(DECISION_MARKER_REGEX);
+      let text = part.text;
+      const match = text.match(DECISION_MARKER_REGEX);
       if (match) {
         decisionId = match[1];
-        displayText += part.text.replace(DECISION_MARKER_REGEX, "").trimEnd();
-      } else {
-        displayText += part.text;
+        text = text.replace(DECISION_MARKER_REGEX, "");
       }
+      text = text.replace(TOOL_EXECUTED_REGEX, "").trimEnd();
+      displayText += text;
     }
   }
 
