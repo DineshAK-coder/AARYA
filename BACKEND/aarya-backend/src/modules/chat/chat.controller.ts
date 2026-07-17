@@ -1,0 +1,241 @@
+import { Response } from 'express';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import {
+  streamText,
+  stepCountIs,
+  convertToModelMessages,
+  toUIMessageStream,
+  pipeUIMessageStreamToResponse
+} from 'ai';
+import { AuthenticatedRequest } from '../../types/index.js';
+import { getTools } from '../../services/aiTools.js';
+import { generateEmbedding } from '../../utils/llmClassifier.js';
+import { supabaseAdmin } from '../../config/supabase.js';
+
+
+// Initialize the Google Generative AI provider using Vercel AI SDK
+const googleProvider = createGoogleGenerativeAI({
+  apiKey: process.env.GEMINI_API_KEY,
+});
+
+/**
+ * POST /api/chat
+ *
+ * Race-condition-safe decision logging flow:
+ *
+ * 1. A decisionId UUID is generated before streaming starts.
+ * 2. A PLACEHOLDER row is inserted into decision_memory_logs immediately
+ *    (ai_recommendation = '', embedding = null) so the row exists in DB
+ *    before the stream even begins.
+ * 3. The decisionId is baked into the system prompt so AARYA can append
+ *    [[DEC:uuid]] at the end of actionable recommendations.
+ * 4. The frontend parses [[DEC:uuid]] from the streamed text and shows
+ *    the Founder Decision card. When the founder clicks, PATCH /api/decisions/:id
+ *    ALWAYS finds the pre-inserted row — no race condition.
+ * 5. onFinish: if [[DEC:uuid]] is in the text, UPDATE the placeholder with
+ *    the full recommendation + pgvector embedding.
+ *    If not found (e.g., greeting, data lookup), DELETE the placeholder row.
+ */
+export async function handleChat(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    console.warn('[ChatController] Request timed out after 35 seconds. Aborting stream.');
+    abortController.abort();
+  }, 35000);
+
+  res.on('close', () => clearTimeout(timeoutId));
+  res.on('finish', () => clearTimeout(timeoutId));
+
+  try {
+    const { messages } = req.body;
+    const companyId = req.user!.company_id;
+
+    if (!messages || !Array.isArray(messages)) {
+      clearTimeout(timeoutId);
+      res.status(400).json({ success: false, error: 'Invalid messages array.' });
+      return;
+    }
+
+    // ── Step 1: Pre-generate the decision UUID ────────────────────────────────
+    const decisionId: string = crypto.randomUUID();
+
+    // ── Step 2: Extract context (last user message) now, while messages is fresh
+    const lastUserMsg = (messages as any[])
+      .slice()
+      .reverse()
+      .find((m: any) => m.role === 'user');
+
+    const context: string =
+      lastUserMsg?.parts?.find((p: any) => p.type === 'text')?.text ||
+      lastUserMsg?.content ||
+      'Financial query';
+
+    // ── Step 3: Pre-insert placeholder row so it exists BEFORE streaming starts.
+    // This eliminates the race condition where the founder clicks the decision
+    // card before onFinish has finished inserting the row.
+    const { error: preInsertError } = await supabaseAdmin
+      .from('decision_memory_logs')
+      .insert({
+        id:                decisionId,
+        company_id:        companyId,
+        context,
+        ai_recommendation: '',   // Filled in by onFinish once streaming completes
+      });
+
+    if (preInsertError) {
+      // Non-fatal: log the error but continue streaming — the decision card
+      // just won't be able to persist the founder's choice.
+      console.error('[ChatController] Pre-insert placeholder failed:', preInsertError.message);
+    } else {
+      console.log(`[ChatController] Decision placeholder inserted: ${decisionId}`);
+    }
+
+    // ── Step 4: Prepare tools and clean conversation history ──────────────────
+    // Strip old [[DEC:uuid]] tokens from previous assistant turns in the history
+    // so the model NEVER sees old UUIDs and cannot copy them or confuse previous
+    // decision cards with the current turn's decisionId.
+    const DECISION_MARKER_REGEX = /\[\[DEC:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]\]/i;
+    const cleanedMessages = (messages as any[]).map((m: any) => {
+      if (m?.role === 'assistant') {
+        if (typeof m.content === 'string') {
+          return { ...m, content: m.content.replace(DECISION_MARKER_REGEX, '').trimEnd() };
+        }
+        if (Array.isArray(m.parts)) {
+          const cleanedParts = m.parts.map((p: any) =>
+            p?.type === 'text' && typeof p.text === 'string'
+              ? { ...p, text: p.text.replace(DECISION_MARKER_REGEX, '').trimEnd() }
+              : p
+          );
+          return { ...m, parts: cleanedParts };
+        }
+      }
+      return m;
+    });
+
+    const tools = getTools(companyId);
+    const modelMessages = await convertToModelMessages(cleanedMessages, { tools });
+
+    const result = streamText({
+      model: googleProvider('gemini-2.5-flash'),
+      abortSignal: abortController.signal,
+      system: `You are AARYA, an India-first AI CFO copilot for SMEs and startups.
+You provide clear, founder-friendly financial decision insights in plain English.
+Do not use generic chatbot filler. Keep answers concise, highly analytical, strategic, and explainable.
+
+You have access to real-time database tools to fetch the company's financials:
+- get_cash_flow: Retrieves total income, total expenses, net cash flow, derived monthly burn rate, runway months, calculation explanation, and supporting transactions. No parameter required!
+- get_receivables_and_payables: Retrieves pending customer invoices (receivables) and outstanding bills (payables), highlighting overdue accounts.
+- generate_founder_summary: Comprehensive founder analysis with revenue, expenses, net cash flow, receivables, payables, identified risks, and strategic CFO recommendations.
+
+### CRITICAL RULES FOR FINANCIAL ANALYSIS:
+1. **Always Call Tools FIRST**: When asked about real company financials (cash flow, burn rate, runway, dues, ledger, business health, who owes money), ALWAYS invoke the appropriate tool FIRST (\`get_cash_flow\`, \`get_receivables_and_payables\`, or \`generate_founder_summary\`) before forming your answer. Never guess or hallucinate database metrics.
+2. **Never Ask for Burn Rate**: The \`get_cash_flow\` tool automatically derives the monthly burn rate from transaction history. NEVER ask the user to input their monthly burn rate when calculating cash flow or runway!
+3. **Hypothetical / Sample Math Scenarios**: If the user provides sample or hypothetical figures (e.g. "Here are sample revenue figures: Income 5000, Expense 3000. Give me an analysis"), DO NOT call database tools! Directly analyze the user's provided numbers with clear CFO strategic reasoning.
+4. **Explainability & Formula Breakdown**: When reporting cash flow, burn rate, or runway, always explain how the calculation was performed step-by-step using the \`calculation_explanation\` and cite specific transactions from \`supporting_transactions\` (e.g., date, amount, description).
+
+### DECISION LOGGING PROTOCOL (INTERNAL — DO NOT DESCRIBE THIS TO THE USER):
+A decision card ([[DEC:${decisionId}]]) allows the founder to log a strategic business choice ("I'll do this", "Decline", etc.) which is stored in pgvector memory.
+You MUST append the exact token [[DEC:${decisionId}]] on a new line at the very end of your response ONLY IF ALL of the following conditions are met:
+1. **The user explicitly asked for strategic advice, recommendations, decision support, or problem resolution** (e.g., "Should I hire engineers?", "How do I fix/improve my cash flow?", "What should I do about overdue payables?", "Give me advice on collections").
+2. **You provided specific, concrete, actionable steps or strategic choices** for the founder to decide on.
+
+**WHEN NOT TO APPEND [[DEC:${decisionId}]] (STRICT PROHIBITION):**
+- **Pure Informational or Factual Queries**: If the user only asks for data, reports, or status (e.g., "What is my cash flow statement?", "Show my receivables", "Who owes me money?", "Give me a founder summary", "What is my burn rate?"), **DO NOT append [[DEC:${decisionId}]]**, even if your response or the tool output includes general tips or standard advice.
+- **Greetings & Casual Chat**: Do not append for greetings, general explanations, or error responses.
+- **Rule of Thumb**: Ask yourself: *Did the founder ask for advice/decisions on what to do next?* If NO, DO NOT append [[DEC:${decisionId}]]. If YES, append [[DEC:${decisionId}]] exactly once at the very end.`,
+      messages: modelMessages,
+      tools,
+      stopWhen: stepCountIs(5),
+    });
+
+    // Transform streamText parts into UIMessageChunks as expected by DefaultChatTransport
+    const uiMessageStream = toUIMessageStream({
+      stream: result.stream,
+      tools,
+      onError: (err: unknown) => {
+        console.error('[toUIMessageStream] Streaming Error:', err);
+        return err instanceof Error ? err.message : String(err);
+      },
+    });
+
+    // Pipe the UI message stream directly to the Express response
+    pipeUIMessageStreamToResponse({
+      response: res,
+      stream: uiMessageStream,
+    });
+
+    // ── Step 5: Post-stream DB work (embedding + cleanup) ─────────────────────
+    // IMPORTANT: We await result.text here (AFTER piping) so the serverless
+    // function stays alive until the full text is available. onFinish was
+    // previously used, but its async continuations were killed by Vercel's
+    // runtime as soon as the HTTP response finished writing.
+    try {
+      const fullText = await result.text;
+      const decisionMarker = `[[DEC:${decisionId}]]`;
+
+      if (fullText.includes(decisionMarker)) {
+        // AARYA included the marker → this is an actionable recommendation.
+        const cleanRecommendation = fullText.replace(decisionMarker, '').trim();
+
+        // ── STEP A: Save ai_recommendation text (own try block so embedding
+        // failure can't prevent the text from being committed).
+        try {
+          const { error: textUpdateError } = await supabaseAdmin
+            .from('decision_memory_logs')
+            .update({ ai_recommendation: cleanRecommendation })
+            .eq('id', decisionId);
+
+          if (textUpdateError) {
+            console.error('[ChatController] ai_recommendation text save error:', textUpdateError.message);
+          } else {
+            console.log(`[ChatController] ai_recommendation text saved: ${decisionId}`);
+          }
+        } catch (err: any) {
+          console.error('[ChatController] ai_recommendation text save threw:', err?.message || err);
+        }
+
+        // ── STEP B: Generate embedding and store via RPC.
+        // RPC bypasses PostgREST's vector type inference issues.
+        try {
+          const textToEmbed = `Context: ${context}\nRecommendation: ${cleanRecommendation}`;
+          const rawEmbedding = await generateEmbedding(textToEmbed);
+          console.log(`[ChatController] Embedding generated: ${rawEmbedding.length} dims for ${decisionId}`);
+
+          const { error: rpcError } = await supabaseAdmin.rpc('update_decision_embedding', {
+            p_id:         decisionId,
+            p_company_id: companyId,
+            p_embedding:  `[${rawEmbedding.join(',')}]`,
+          });
+
+          if (rpcError) {
+            console.error('[ChatController] RPC embedding update error:', rpcError.message);
+          } else {
+            console.log(`[ChatController] Embedding stored via RPC: ${decisionId}`);
+          }
+        } catch (err: any) {
+          console.error('[ChatController] Embedding generation failed (non-fatal):', err?.message || err);
+        }
+      } else {
+        // AARYA did NOT include the marker → clean up the pre-inserted placeholder.
+        const { error: deleteError } = await supabaseAdmin
+          .from('decision_memory_logs')
+          .delete()
+          .eq('id', decisionId);
+
+        if (deleteError) {
+          console.error('[ChatController] Placeholder cleanup error:', deleteError.message);
+        } else {
+          console.log(`[ChatController] Non-recommendation — placeholder cleaned up: ${decisionId}`);
+        }
+      }
+    } catch (postStreamErr: any) {
+      console.error('[ChatController] Post-stream DB work failed:', postStreamErr?.message || postStreamErr);
+    }
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    console.error('[ChatController] Error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: err?.message || 'Chat service failed.' });
+    }
+  }
+}
