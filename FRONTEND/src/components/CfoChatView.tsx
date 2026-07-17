@@ -165,12 +165,13 @@ const DecisionCard: React.FC<DecisionCardProps> = ({
   );
 };
 
-// ── AI Visual Analytics Studio (Split Panel) ──────────────────────────────────
+// ── Dynamic AI Visual Analytics Studio (Split Panel) ──────────────────────────
 
 interface ChatVisualizationPanelProps {
   state: BusinessState;
   currencySymbol: string;
   latestResponseText: string;
+  latestUserQuestion: string;
   onClose: () => void;
 }
 
@@ -178,6 +179,7 @@ const ChatVisualizationPanel: React.FC<ChatVisualizationPanelProps> = ({
   state,
   currencySymbol,
   latestResponseText,
+  latestUserQuestion,
   onClose,
 }) => {
   const {
@@ -191,109 +193,308 @@ const ChatVisualizationPanel: React.FC<ChatVisualizationPanelProps> = ({
     overdue30DaysTotal,
   } = useFinancials();
 
-  const [activeTab, setActiveTab] = useState<"runway" | "exposure" | "invoices">("runway");
+  const [viewMode, setViewMode] = useState<"auto" | "bar" | "area" | "pie" | "grid">("auto");
 
-  // Auto-switch tab based on what the latest AI response discusses
+  // Reset viewMode to auto whenever the AI generates a new response so it picks the best chart style dynamically
   useEffect(() => {
-    const text = (latestResponseText || "").toLowerCase();
-    if (text.includes("owe") || text.includes("client") || text.includes("customer") || text.includes("exposure") || text.includes("collection") || text.includes("receivable") || text.includes("risk report")) {
-      setActiveTab("exposure");
-    } else if (text.includes("overdue") || text.includes("invoice") || text.includes("bill") || text.includes("due") || text.includes("30 days") || text.includes("pending") || text.includes("msme")) {
-      setActiveTab("invoices");
-    } else {
-      setActiveTab("runway");
-    }
+    setViewMode("auto");
   }, [latestResponseText]);
 
-  // 1. Runway & Cash Flow Forecast Curve (6 months)
-  const runwayData = useMemo(() => {
-    const startBal = state.startingBalance || 150000;
-    const monthlyNet = netCashFlow !== 0 ? netCashFlow : 12000;
-    const monthlyBurn = payables > 0 ? payables * 0.4 : 35000;
-    
-    return [
-      { month: "M1", Balance: Math.max(0, startBal), Burn: monthlyBurn },
-      { month: "M2", Balance: Math.max(0, startBal + monthlyNet), Burn: monthlyBurn * 1.05 },
-      { month: "M3", Balance: Math.max(0, startBal + monthlyNet * 2), Burn: monthlyBurn * 1.08 },
-      { month: "M4", Balance: Math.max(0, startBal + monthlyNet * 3), Burn: monthlyBurn * 1.05 },
-      { month: "M5", Balance: Math.max(0, startBal + monthlyNet * 4), Burn: monthlyBurn * 1.1 },
-      { month: "M6", Balance: Math.max(0, startBal + monthlyNet * 5), Burn: monthlyBurn * 1.12 },
-    ];
-  }, [state.startingBalance, netCashFlow, payables]);
+  const dynamicContext = useMemo(() => {
+    const text = (latestResponseText || "").trim();
+    const query = (latestUserQuestion || "").trim();
+    const combined = `${query}\n${text}`;
+    const lowerCombined = combined.toLowerCase();
 
-  // 2. Customer & Account Exposure Bars
-  const exposureData = useMemo(() => {
-    const ledgerItems = state.ledger
-      .filter(item => item.amount > 0)
-      .map(item => ({ name: item.name.split(" ")[0], Amount: item.amount }));
-    if (ledgerItems.length > 0) return ledgerItems.slice(0, 5);
-
-    if (transactions.length > 0) {
-      const exposureMap = new Map<string, number>();
-      for (const tx of transactions) {
-        if (tx.transaction_type === "income") {
-          const name = (tx.description || tx.customer || "Account").trim().split(" ")[0] || "Client";
-          const amt = Math.abs(Number(tx.amount) || 0);
-          exposureMap.set(name, (exposureMap.get(name) || 0) + amt);
-        }
+    // Helper: Clean numerical string (e.g. "$45,000" -> 45000, "1.5L" -> 150000, "120k" -> 120000)
+    const parseAmount = (rawStr: string): number => {
+      let s = rawStr.replace(/[$₹€£,\s]/g, "").trim();
+      let multiplier = 1;
+      if (/^[0-9.]+[kK]$/.test(s)) {
+        multiplier = 1000;
+        s = s.replace(/[kK]$/, "");
+      } else if (/^[0-9.]+[lL]$/.test(s)) {
+        multiplier = 100000;
+        s = s.replace(/[lL]$/, "");
+      } else if (/^[0-9.]+[mM]$/.test(s)) {
+        multiplier = 1000000;
+        s = s.replace(/[mM]$/, "");
+      } else if (/^[0-9.]+[crCR]$/.test(s)) {
+        multiplier = 10000000;
+        s = s.replace(/[crCR]$/, "");
+      } else if (/^[0-9.]+%$/.test(s)) {
+        s = s.replace(/%$/, "");
       }
-      const aggregated = Array.from(exposureMap.entries())
-        .map(([name, Amount]) => ({ name, Amount }))
-        .sort((a, b) => b.Amount - a.Amount)
-        .slice(0, 5);
-      if (aggregated.length > 0) return aggregated;
+      const num = parseFloat(s);
+      return isNaN(num) ? 0 : num * multiplier;
+    };
+
+    const extractedItems: { name: string; value: number; secondary?: number; label?: string }[] = [];
+
+    // ── Strategy A: Parse Markdown Table Rows ──
+    const tableRowRegex = /\|\s*([^|]+)\s*\|\s*([^|]+)\s*(?:\|\s*([^|]+)\s*)?\|/g;
+    let match;
+    let isTableFound = false;
+    while ((match = tableRowRegex.exec(text)) !== null) {
+      const col1 = match[1].trim();
+      const col2 = match[2]?.trim() || "";
+      const col3 = match[3]?.trim() || "";
+      if (/^[-:]+$/.test(col1) || /^[-:]+$/.test(col2) || /^(category|name|customer|account|month|period|item|description|metrics?)$/i.test(col1)) {
+        continue;
+      }
+      const val = parseAmount(col2);
+      if (val > 0) {
+        isTableFound = true;
+        const secVal = parseAmount(col3);
+        extractedItems.push({ name: col1.slice(0, 20), value: val, secondary: secVal > 0 ? secVal : undefined });
+      }
     }
 
-    if (state.invoices.length > 0) {
-      const exposureMap = new Map<string, number>();
+    // ── Strategy B: Parse Bullet / Numbered Lists with Amounts/Percentages ──
+    if (extractedItems.length === 0) {
+      const bulletRegex = /(?:^|\n)\s*(?:[-*•]|\d+\.)\s*(?:\**)([^:*_\-\n]+?)(?:\**)\s*[:\-–—]\s*(?:[^0-9\n]*?)([$₹€£]?\s*[\d,]+(?:\.\d+)?\s*(?:[kKmLlCrB%]?))/gi;
+      while ((match = bulletRegex.exec(text)) !== null) {
+        const label = match[1].replace(/[*_`]/g, "").trim();
+        const valStr = match[2].trim();
+        if (label && label.length < 32 && !/^(total|summary|note|note:|ps|hint|conclusion)/i.test(label)) {
+          const val = parseAmount(valStr);
+          if (val > 0) {
+            extractedItems.push({ name: label.slice(0, 20), value: val });
+          }
+        }
+      }
+    }
+
+    // ── Strategy C: Parse Time-Series / Monthly / Quarterly items ──
+    const timeItems: { name: string; value: number; secondary?: number }[] = [];
+    if (extractedItems.length === 0) {
+      const timeRegex = /(Month\s*\d+|Week\s*\d+|Q[1-4]|Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?|202[3-6])[^0-9.$₹€£]*(?:[$₹€£]\s*([\d,]+(?:\.\d+)?\s*(?:[kKmLlCrB]?))|([\d,]+(?:\.\d+)?\s*(?:[kKmLlCrB]?))\s*(?:dollars|INR|USD|rupees|burn|revenue|inflow|outflow|balance))/gi;
+      while ((match = timeRegex.exec(combined)) !== null) {
+        const tLabel = match[1].trim();
+        const rawAmt = match[2] || match[3] || "";
+        const val = parseAmount(rawAmt);
+        if (val > 0 && !timeItems.some(item => item.name === tLabel)) {
+          timeItems.push({ name: tLabel, value: val });
+        }
+      }
+      if (timeItems.length >= 2) {
+        extractedItems.push(...timeItems);
+      }
+    }
+
+    // ── Determine Chart Type & Dynamic Title based on Extracted Data & Topic ──
+    let chartType: "bar" | "area" | "pie" = "bar";
+    let title = "Dynamic Quantitative Analysis";
+    let subtitle = query ? `Query: "${query.slice(0, 44)}${query.length > 44 ? "..." : ""}"` : "Real-Time AI Response Extraction";
+    let insightNote = "Chart synthesized in real-time from specific numerical figures and entities generated by AARYA in response to your query.";
+
+    // If custom figures were extracted from the AI response:
+    if (extractedItems.length > 0) {
+      const hasTimeLabels = extractedItems.some(i => /^(Month|Week|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Q[1-4]|202\d)/i.test(i.name));
+      const hasPercentages = text.includes("%") && extractedItems.reduce((acc, i) => acc + i.value, 0) <= 105;
+
+      if (hasTimeLabels) {
+        chartType = "area";
+        title = query ? `${query.slice(0, 36)} (Forecast)` : "Time-Series Cash & Metric Progression";
+        insightNote = `Extracted ${extractedItems.length} sequential periods directly from AARYA's response. Visualizes trend trajectory and period-over-period delta.`;
+      } else if (hasPercentages || (extractedItems.length <= 5 && (lowerCombined.includes("share") || lowerCombined.includes("breakdown") || lowerCombined.includes("distribution") || lowerCombined.includes("split")))) {
+        chartType = "pie";
+        title = query ? `${query.slice(0, 36)} (Breakdown)` : "Proportional Share & Category Breakdown";
+        insightNote = `Extracted ${extractedItems.length} categorical segments from AARYA's response, illustrating relative distribution and concentration.`;
+      } else {
+        chartType = "bar";
+        title = query ? `${query.slice(0, 36)} (Comparison)` : "Comparative Entity & Metric Exposure";
+        insightNote = `Extracted ${extractedItems.length} specific data items from AARYA's answer for comparative magnitude analysis.`;
+      }
+
+      const totalVal = extractedItems.reduce((acc, i) => acc + i.value, 0);
+      const topItem = [...extractedItems].sort((a, b) => b.value - a.value)[0];
+      const avgVal = totalVal / extractedItems.length;
+
+      const kpiCards = [
+        { label: "Extracted Volume / Total", value: `${currencySymbol}${totalVal.toLocaleString("en-US", { maximumFractionDigits: 0 })}`, sublabel: `${extractedItems.length} Data Items` },
+        { label: "Top Entity / Peak", value: topItem?.name || "N/A", sublabel: `${currencySymbol}${topItem?.value?.toLocaleString() || 0}` },
+        { label: "Average Metric Value", value: `${currencySymbol}${avgVal.toLocaleString("en-US", { maximumFractionDigits: 0 })}`, sublabel: "Across Extracted Items" },
+      ];
+
+      return {
+        chartType,
+        title,
+        subtitle,
+        data: extractedItems,
+        kpiCards,
+        insightNote,
+        isCustomExtracted: true,
+      };
+    }
+
+    // ── Contextual Live Synthesis if explicit regex figures not found in text ──
+    // Synthesizes live business data precisely filtered to whatever specific question/topic was raised!
+    if (lowerCombined.includes("owe") || lowerCombined.includes("collection") || lowerCombined.includes("receivable") || lowerCombined.includes("client") || lowerCombined.includes("customer") || lowerCombined.includes("dso") || lowerCombined.includes("risk report")) {
+      const clientExposure = new Map<string, number>();
       for (const inv of state.invoices) {
         if (inv.status !== "Paid") {
-          const name = (inv.customer || "Client").trim().split(" ")[0];
-          exposureMap.set(name, (exposureMap.get(name) || 0) + inv.amount);
+          const cName = (inv.customer || "Client").trim().split(" ")[0];
+          clientExposure.set(cName, (clientExposure.get(cName) || 0) + inv.amount);
         }
       }
-      const aggregated = Array.from(exposureMap.entries())
-        .map(([name, Amount]) => ({ name, Amount }))
-        .sort((a, b) => b.Amount - a.Amount)
-        .slice(0, 5);
-      if (aggregated.length > 0) return aggregated;
+      for (const item of state.ledger) {
+        if (item.amount > 0) {
+          const lName = item.name.split(" ")[0];
+          clientExposure.set(lName, (clientExposure.get(lName) || 0) + item.amount);
+        }
+      }
+      for (const tx of transactions) {
+        if (tx.transaction_type === "income") {
+          const tName = (tx.description || tx.customer || "Account").trim().split(" ")[0] || "Client";
+          clientExposure.set(tName, (clientExposure.get(tName) || 0) + Math.abs(Number(tx.amount) || 0));
+        }
+      }
+      const sortedExposure = Array.from(clientExposure.entries())
+        .map(([name, Amount]) => ({ name, value: Amount }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 6);
+      
+      const finalData = sortedExposure.length > 0 ? sortedExposure : [
+        { name: "Surinder", value: 8720 },
+        { name: "Acme Corp", value: 5400 },
+        { name: "Apex Ltd", value: 3100 },
+      ];
+
+      return {
+        chartType: "bar" as const,
+        title: query ? `Account Receivables: "${query.slice(0, 32)}"` : "Live Customer Receivable & Exposure Breakdown",
+        subtitle: "Dynamic collection & exposure synthesis",
+        data: finalData,
+        kpiCards: [
+          { label: "Total Outstanding Receivables", value: `${currencySymbol}${receivables.toLocaleString("en-US", { maximumFractionDigits: 0 })}`, sublabel: `${finalData.length} Key Accounts` },
+          { label: "Top Debtor Account", value: finalData[0]?.name || "N/A", sublabel: `${currencySymbol}${finalData[0]?.value?.toLocaleString() || 0}` },
+          { label: "30+ Day Overdue Risk", value: `${overdue30DaysCount} Accounts`, sublabel: `Exposure ${currencySymbol}${overdue30DaysTotal.toLocaleString()}` },
+        ],
+        insightNote: `Dynamic account receivable analysis synthesized to model "${query || "collections inquiry"}". Highlights concentration of pending inflows.`,
+        isCustomExtracted: false,
+      };
+    } else if (lowerCombined.includes("payable") || lowerCombined.includes("vendor") || lowerCombined.includes("bill") || lowerCombined.includes("expense") || lowerCombined.includes("cost") || lowerCombined.includes("spend")) {
+      const vendorMap = new Map<string, number>();
+      for (const item of state.ledger) {
+        if (item.amount > 0) {
+          const lName = item.name.split(" ")[0];
+          vendorMap.set(lName, (vendorMap.get(lName) || 0) + item.amount);
+        }
+      }
+      for (const tx of transactions) {
+        if (tx.transaction_type === "expense") {
+          const vName = (tx.description || tx.customer || "Vendor").trim().split(" ")[0] || "Vendor";
+          vendorMap.set(vName, (vendorMap.get(vName) || 0) + Math.abs(Number(tx.amount) || 0));
+        }
+      }
+      const sortedVendors = Array.from(vendorMap.entries())
+        .map(([name, Amount]) => ({ name, value: Amount }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 6);
+
+      const finalData = sortedVendors.length > 0 ? sortedVendors : [
+        { name: "AWS Cloud", value: 12500 },
+        { name: "Stripe Fees", value: 6200 },
+        { name: "Legal Counsel", value: 4500 },
+        { name: "Software SaaS", value: 3800 },
+      ];
+
+      return {
+        chartType: "bar" as const,
+        title: query ? `Liability Analysis: "${query.slice(0, 32)}"` : "Outgoing Payables & Vendor Breakdown",
+        subtitle: "Dynamic liability & expense synthesis",
+        data: finalData,
+        kpiCards: [
+          { label: "Total Outstanding Payables", value: `${currencySymbol}${payables.toLocaleString("en-US", { maximumFractionDigits: 0 })}`, sublabel: `${finalData.length} Vendors` },
+          { label: "Largest Outgoing Liability", value: finalData[0]?.name || "N/A", sublabel: `${currencySymbol}${finalData[0]?.value?.toLocaleString() || 0}` },
+          { label: "Net Cash Flow Buffer", value: `${currencySymbol}${netCashFlow.toLocaleString()}`, sublabel: `Runway: ${runwayMonthsFormatted} mos` },
+        ],
+        insightNote: `Dynamic vendor breakdown synthesized to answer "${query || "payable inquiry"}". Tracks primary cost centers and liabilities.`,
+        isCustomExtracted: false,
+      };
+    } else if (lowerCombined.includes("overdue") || lowerCombined.includes("invoice") || lowerCombined.includes("due") || lowerCombined.includes("pending") || lowerCombined.includes("43b") || lowerCombined.includes("msme")) {
+      let paidAmt = 0;
+      let pendingAmt = 0;
+      let overdueAmt = overdue30DaysTotal;
+      for (const inv of state.invoices) {
+        if (inv.status === "Paid") paidAmt += inv.amount;
+        else if (inv.status === "Pending") pendingAmt += inv.amount;
+        else if (inv.status === "Overdue") overdueAmt += inv.amount;
+      }
+      if (paidAmt === 0 && pendingAmt === 0 && overdueAmt === 0) {
+        paidAmt = 45000; pendingAmt = 22000; overdueAmt = 12500;
+      }
+      const data = [
+        { name: "Paid Volume", value: paidAmt, color: "#10B981" },
+        { name: "Pending Dues", value: pendingAmt, color: "#F59E0B" },
+        { name: "30+ Days Overdue", value: overdueAmt, color: "#EF4444" },
+      ].filter(item => item.value > 0);
+
+      return {
+        chartType: "pie" as const,
+        title: query ? `Invoice Health: "${query.slice(0, 32)}"` : "Real-Time Invoice Settlement & Overdue Breakdown",
+        subtitle: "Dynamic invoice & MSME status synthesis",
+        data,
+        kpiCards: [
+          { label: "30+ Days Overdue Count", value: `${overdue30DaysCount} Accounts`, sublabel: `Total ${currencySymbol}${overdue30DaysTotal.toLocaleString()}` },
+          { label: "Pending Settlement Dues", value: `${currencySymbol}${pendingAmt.toLocaleString()}`, sublabel: "Awaiting Clearance" },
+          { label: "Settled Paid Volume", value: `${currencySymbol}${paidAmt.toLocaleString()}`, sublabel: "Resolved Capital" },
+        ],
+        insightNote: `Distribution generated directly from active invoice ledgers for audit of "${query || "invoice risk"}".`,
+        isCustomExtracted: false,
+      };
+    } else if (lowerCombined.includes("runway") || lowerCombined.includes("burn") || lowerCombined.includes("cash flow") || lowerCombined.includes("forecast") || lowerCombined.includes("projection") || lowerCombined.includes("month")) {
+      const startBal = state.startingBalance || 150000;
+      const monthlyNet = netCashFlow !== 0 ? netCashFlow : 12000;
+      const monthlyBurn = payables > 0 ? payables * 0.4 : 35000;
+      const data = [
+        { name: "Month 1", value: Math.max(0, startBal), secondary: monthlyBurn },
+        { name: "Month 2", value: Math.max(0, startBal + monthlyNet), secondary: monthlyBurn * 1.05 },
+        { name: "Month 3", value: Math.max(0, startBal + monthlyNet * 2), secondary: monthlyBurn * 1.08 },
+        { name: "Month 4", value: Math.max(0, startBal + monthlyNet * 3), secondary: monthlyBurn * 1.05 },
+        { name: "Month 5", value: Math.max(0, startBal + monthlyNet * 4), secondary: monthlyBurn * 1.1 },
+        { name: "Month 6", value: Math.max(0, startBal + monthlyNet * 5), secondary: monthlyBurn * 1.12 },
+      ];
+      return {
+        chartType: "area" as const,
+        title: query ? `Runway Simulation: "${query.slice(0, 32)}"` : "Dynamic 6-Month Cash Forecast & Burn Trajectory",
+        subtitle: "Dynamic runway & burn synthesis",
+        data,
+        kpiCards: [
+          { label: "Runway Horizon", value: `${runwayMonthsFormatted} mos`, sublabel: `Status: ${runwayStatus}` },
+          { label: "Net Monthly Cash Flow", value: `${currencySymbol}${netCashFlow.toLocaleString()}`, sublabel: "Inflow minus Outflow" },
+          { label: "Estimated Monthly Burn", value: `${currencySymbol}${monthlyBurn.toLocaleString()}`, sublabel: "Current Operating Rate" },
+        ],
+        insightNote: `Multi-month cash horizon trajectory synthesized to model survival buffer and burn threshold for "${query || "runway analysis"}".`,
+        isCustomExtracted: false,
+      };
+    } else {
+      // General overview dynamically structured for any other custom question
+      const data = [
+        { name: "Cash Reserve", value: state.startingBalance || 150000 },
+        { name: "Receivables", value: receivables || 45000 },
+        { name: "Liabilities", value: payables || 28000 },
+        { name: "Net Flow", value: Math.abs(netCashFlow || 12000) },
+      ];
+      return {
+        chartType: "bar" as const,
+        title: query ? `Query Overview: "${query.slice(0, 36)}"` : "Multi-Metric Quantitative Synthesis",
+        subtitle: "Contextualized financial status breakdown",
+        data,
+        kpiCards: [
+          { label: "Current Liquid Capital", value: `${currencySymbol}${(state.startingBalance || 150000).toLocaleString()}`, sublabel: `Runway ${runwayMonthsFormatted} mos` },
+          { label: "Total Receivables", value: `${currencySymbol}${receivables.toLocaleString()}`, sublabel: "Pending Inflows" },
+          { label: "Total Payables", value: `${currencySymbol}${payables.toLocaleString()}`, sublabel: "Pending Liabilities" },
+        ],
+        insightNote: `Real-time quantitative overview dynamically generated to accompany AARYA's response regarding "${query || "your financial inquiry"}".`,
+        isCustomExtracted: false,
+      };
     }
+  }, [latestResponseText, latestUserQuestion, state, transactions, receivables, payables, netCashFlow, overdue30DaysTotal, overdue30DaysCount, currencySymbol, runwayMonthsFormatted, runwayStatus]);
 
-    return [
-      { name: "Surinder", Amount: 8720 },
-      { name: "Acme Corp", Amount: 5400 },
-      { name: "Apex Ltd", Amount: 3100 },
-      { name: "Nexus AI", Amount: 2400 },
-      { name: "Global Tech", Amount: 1800 },
-    ];
-  }, [state.ledger, transactions, state.invoices]);
-
-  // 3. Invoice Breakdown Pie Data
-  const invoiceData = useMemo(() => {
-    let paidAmt = 0;
-    let pendingAmt = 0;
-    let overdueAmt = overdue30DaysTotal;
-
-    for (const inv of state.invoices) {
-      if (inv.status === "Paid") paidAmt += inv.amount;
-      else if (inv.status === "Pending") pendingAmt += inv.amount;
-      else if (inv.status === "Overdue") overdueAmt += inv.amount;
-    }
-
-    if (paidAmt === 0 && pendingAmt === 0 && overdueAmt === 0) {
-      paidAmt = 45000;
-      pendingAmt = 22000;
-      overdueAmt = 12500;
-    }
-
-    return [
-      { name: "Paid Volume", value: paidAmt, color: "#10B981" },
-      { name: "Pending Dues", value: pendingAmt, color: "#F59E0B" },
-      { name: "30+ Days Overdue", value: overdueAmt, color: "#EF4444" },
-    ].filter(item => item.value > 0);
-  }, [state.invoices, overdue30DaysTotal]);
-
-  const PIE_COLORS = ["#10B981", "#F59E0B", "#EF4444"];
+  const activeRenderMode = viewMode === "auto" ? dynamicContext.chartType : viewMode;
+  const PIE_COLORS = ["#D988A1", "#8A5A7B", "#10B981", "#F59E0B", "#3B82F6", "#EC4899", "#8B5CF6"];
 
   return (
     <div className="flex flex-col h-full bg-[#13111C] text-white p-5 border-l border-neutral-800/80 shadow-2xl overflow-y-auto select-none">
@@ -307,11 +508,15 @@ const ChatVisualizationPanel: React.FC<ChatVisualizationPanelProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-heading font-bold text-sm tracking-tight text-white">AI Visual Analytics</h3>
-              <span className="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono font-semibold uppercase tracking-wider animate-pulse">
-                Live Data Synced
+              <span className={`text-[9px] px-2 py-0.5 rounded-full font-mono font-semibold uppercase tracking-wider animate-pulse border ${
+                dynamicContext.isCustomExtracted
+                  ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
+                  : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+              }`}>
+                {dynamicContext.isCustomExtracted ? "Extracted From Answer" : "Live Context Synced"}
               </span>
             </div>
-            <p className="text-[10px] text-[#9E9AA7] font-mono mt-0.5">Dynamic charts contextualized to latest AI reply</p>
+            <p className="text-[10px] text-[#9E9AA7] font-mono mt-0.5">{dynamicContext.subtitle}</p>
           </div>
         </div>
         <button
@@ -323,230 +528,164 @@ const ChatVisualizationPanel: React.FC<ChatVisualizationPanelProps> = ({
         </button>
       </div>
 
-      {/* Switcher Tabs */}
-      <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#1F1D2B] rounded-xl my-4 shrink-0 border border-neutral-800/60">
+      {/* Dynamic Mode Switcher (Allows viewing the EXACT extracted answer data in multiple graphical styles!) */}
+      <div className="grid grid-cols-4 gap-1.5 p-1 bg-[#1F1D2B] rounded-xl my-4 shrink-0 border border-neutral-800/60">
         <button
-          onClick={() => setActiveTab("runway")}
+          onClick={() => setViewMode("auto")}
           className={`py-2 px-2 rounded-lg text-[10px] font-semibold transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === "runway"
+            viewMode === "auto"
               ? "bg-gradient-to-r from-[#D988A1] to-[#8A5A7B] text-white shadow-md shadow-[#8A5A7B]/20"
               : "text-[#9E9AA7] hover:text-white"
           }`}
         >
-          <TrendingUp className="w-3 h-3 shrink-0" />
-          <span className="truncate">Runway & Burn</span>
+          <Sparkles className="w-3 h-3 shrink-0 text-amber-300" />
+          <span className="truncate">Auto (${dynamicContext.chartType.toUpperCase()})</span>
         </button>
         <button
-          onClick={() => setActiveTab("exposure")}
+          onClick={() => setViewMode("bar")}
           className={`py-2 px-2 rounded-lg text-[10px] font-semibold transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === "exposure"
+            viewMode === "bar"
               ? "bg-gradient-to-r from-[#D988A1] to-[#8A5A7B] text-white shadow-md shadow-[#8A5A7B]/20"
               : "text-[#9E9AA7] hover:text-white"
           }`}
         >
           <BarChart2 className="w-3 h-3 shrink-0" />
-          <span className="truncate">Customer Exposure</span>
+          <span className="truncate">Bar View</span>
         </button>
         <button
-          onClick={() => setActiveTab("invoices")}
+          onClick={() => setViewMode("area")}
           className={`py-2 px-2 rounded-lg text-[10px] font-semibold transition-all flex items-center justify-center gap-1.5 ${
-            activeTab === "invoices"
+            viewMode === "area"
+              ? "bg-gradient-to-r from-[#D988A1] to-[#8A5A7B] text-white shadow-md shadow-[#8A5A7B]/20"
+              : "text-[#9E9AA7] hover:text-white"
+          }`}
+        >
+          <TrendingUp className="w-3 h-3 shrink-0" />
+          <span className="truncate">Trend View</span>
+        </button>
+        <button
+          onClick={() => setViewMode("pie")}
+          className={`py-2 px-2 rounded-lg text-[10px] font-semibold transition-all flex items-center justify-center gap-1.5 ${
+            viewMode === "pie"
               ? "bg-gradient-to-r from-[#D988A1] to-[#8A5A7B] text-white shadow-md shadow-[#8A5A7B]/20"
               : "text-[#9E9AA7] hover:text-white"
           }`}
         >
           <PieChartIcon className="w-3 h-3 shrink-0" />
-          <span className="truncate">Invoice Health</span>
+          <span className="truncate">Pie View</span>
         </button>
       </div>
 
-      {/* Tab Content Areas */}
-      <div className="flex-1 flex flex-col space-y-5">
+      {/* Dynamic Content Area */}
+      <div className="flex-1 flex flex-col space-y-5 animate-in fade-in duration-300">
         
-        {/* TAB 1: RUNWAY & BURN */}
-        {activeTab === "runway" && (
-          <div className="space-y-4 animate-in fade-in duration-300">
-            {/* Summary KPI Pills */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="bg-[#1F1D2B]/80 p-3 rounded-xl border border-neutral-800/60">
-                <span className="text-[10px] text-[#9E9AA7] font-mono block">Runway Horizon</span>
-                <span className={`text-base font-bold font-heading mt-0.5 block ${runwayStatus === "CRITICAL" || runwayStatus === "WARNING" ? "text-red-400" : "text-emerald-400"}`}>
-                  {runwayMonthsFormatted} mos
-                </span>
-              </div>
-              <div className="bg-[#1F1D2B]/80 p-3 rounded-xl border border-neutral-800/60">
-                <span className="text-[10px] text-[#9E9AA7] font-mono block">Net Cash Flow</span>
-                <span className="text-base font-bold font-heading text-white mt-0.5 block truncate">
-                  {currencySymbol}{netCashFlow.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                </span>
-              </div>
-              <div className="bg-[#1F1D2B]/80 p-3 rounded-xl border border-neutral-800/60">
-                <span className="text-[10px] text-[#9E9AA7] font-mono block">Total Payables</span>
-                <span className="text-base font-bold font-heading text-[#D988A1] mt-0.5 block truncate">
-                  {currencySymbol}{payables.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                </span>
-              </div>
+        {/* Dynamic KPI Cards */}
+        <div className="grid grid-cols-3 gap-2">
+          {dynamicContext.kpiCards.map((card, idx) => (
+            <div key={idx} className="bg-[#1F1D2B]/80 p-3 rounded-xl border border-neutral-800/60">
+              <span className="text-[10px] text-[#9E9AA7] font-mono block truncate" title={card.label}>{card.label}</span>
+              <span className="text-base font-bold font-heading text-white mt-0.5 block truncate">
+                {card.value}
+              </span>
+              {card.sublabel && (
+                <span className="text-[9px] text-[#D988A1] font-mono block truncate mt-0.5">{card.sublabel}</span>
+              )}
             </div>
+          ))}
+        </div>
 
-            {/* Chart Card */}
-            <div className="bg-[#1F1D2B]/60 p-4 rounded-2xl border border-neutral-800/60 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white font-heading">6-Month Cash Balance Projection</span>
-                <span className="text-[10px] text-[#9E9AA7] font-mono">Vs. Simulated Burn</span>
-              </div>
-              <div className="h-[220px] w-full pt-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={runwayData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="splitRunwayGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#D988A1" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#8A5A7B" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2D2B3B" vertical={false} />
-                    <XAxis dataKey="month" stroke="#9E9AA7" fontSize={10} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#9E9AA7" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `${currencySymbol}${(val/1000).toFixed(0)}k`} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: "#13111C", borderColor: "#3B384D", borderRadius: "12px", fontSize: "11px", color: "#fff" }}
-                      formatter={(value: any) => [`${currencySymbol}${Number(value).toLocaleString()}`, ""]}
-                    />
-                    <Area type="monotone" dataKey="Balance" stroke="#D988A1" strokeWidth={2.5} fillOpacity={1} fill="url(#splitRunwayGrad)" name="Cash Forecast" />
-                    <Area type="monotone" dataKey="Burn" stroke="#EF4444" strokeWidth={1.5} strokeDasharray="4 4" fill="transparent" name="Monthly Burn" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* AI Contextual Note */}
-            <div className="bg-gradient-to-r from-[#D988A1]/10 to-transparent border-l-2 border-[#D988A1] p-3 rounded-r-xl">
-              <span className="text-[10px] font-bold text-[#D988A1] uppercase tracking-wider block font-mono">AARYA Simulation Insight</span>
-              <p className="text-xs text-neutral-300 leading-relaxed mt-1">
-                Projected runway dynamically factors live bank feeds and pending payables. A 15% optimization in vendor expenses increases runway buffer by ~1.6 months.
-              </p>
-            </div>
+        {/* Dynamic Chart Studio Card */}
+        <div className="bg-[#1F1D2B]/60 p-4 rounded-2xl border border-neutral-800/60 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-white font-heading truncate max-w-[75%]" title={dynamicContext.title}>
+              {dynamicContext.title}
+            </span>
+            <span className="text-[10px] text-[#D988A1] font-mono shrink-0 uppercase">
+              {activeRenderMode.toUpperCase()} CHART
+            </span>
           </div>
-        )}
 
-        {/* TAB 2: CUSTOMER EXPOSURE */}
-        {activeTab === "exposure" && (
-          <div className="space-y-4 animate-in fade-in duration-300">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-[#1F1D2B]/80 p-3 rounded-xl border border-neutral-800/60">
-                <span className="text-[10px] text-[#9E9AA7] font-mono block">Total Receivables</span>
-                <span className="text-base font-bold font-heading text-emerald-400 mt-0.5 block truncate">
-                  {currencySymbol}{receivables.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                </span>
-              </div>
-              <div className="bg-[#1F1D2B]/80 p-3 rounded-xl border border-neutral-800/60">
-                <span className="text-[10px] text-[#9E9AA7] font-mono block">Active Exposure Clients</span>
-                <span className="text-base font-bold font-heading text-white mt-0.5 block">
-                  {exposureData.length} Key Accounts
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-[#1F1D2B]/60 p-4 rounded-2xl border border-neutral-800/60 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white font-heading">Top Customer Outstanding Exposure</span>
-                <span className="text-[10px] text-[#D988A1] font-mono">Ranked by Amount</span>
-              </div>
-              <div className="h-[220px] w-full pt-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={exposureData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2D2B3B" vertical={false} />
-                    <XAxis dataKey="name" stroke="#9E9AA7" fontSize={10} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#9E9AA7" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `${currencySymbol}${(val/1000).toFixed(0)}k`} />
-                    <Tooltip 
-                      cursor={{ fill: "rgba(217, 136, 161, 0.08)" }}
-                      contentStyle={{ backgroundColor: "#13111C", borderColor: "#3B384D", borderRadius: "12px", fontSize: "11px", color: "#fff" }}
-                      formatter={(value: any) => [`${currencySymbol}${Number(value).toLocaleString()}`, "Outstanding"]}
-                    />
-                    <Bar dataKey="Amount" fill="#D988A1" radius={[6, 6, 0, 0]} barSize={28}>
-                      {exposureData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={index === 0 ? "#D988A1" : "#8A5A7B"} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-emerald-500/10 to-transparent border-l-2 border-emerald-500 p-3 rounded-r-xl">
-              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block font-mono">Collection Acceleration Note</span>
-              <p className="text-xs text-neutral-300 leading-relaxed mt-1">
-                Your highest exposure account ({exposureData[0]?.name || "Client"}) accounts for significant pending capital. Triggering WhatsApp payment links can reduce DSO by 22%.
-              </p>
-            </div>
+          <div className="h-[230px] w-full pt-2 flex items-center justify-center">
+            <ResponsiveContainer width="100%" height="100%">
+              {activeRenderMode === "bar" ? (
+                <BarChart data={dynamicContext.data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#2D2B3B" vertical={false} />
+                  <XAxis dataKey="name" stroke="#9E9AA7" fontSize={10} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#9E9AA7" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `${currencySymbol}${Number(val) >= 1000 ? (val/1000).toFixed(0) + "k" : val}`} />
+                  <Tooltip 
+                    cursor={{ fill: "rgba(217, 136, 161, 0.08)" }}
+                    contentStyle={{ backgroundColor: "#13111C", borderColor: "#3B384D", borderRadius: "12px", fontSize: "11px", color: "#fff" }}
+                    formatter={(value: any) => [`${currencySymbol}${Number(value).toLocaleString()}`, "Value"]}
+                  />
+                  <Bar dataKey="value" fill="#D988A1" radius={[6, 6, 0, 0]} barSize={32}>
+                    {dynamicContext.data.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              ) : activeRenderMode === "area" ? (
+                <AreaChart data={dynamicContext.data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="splitDynamicGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#D988A1" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#8A5A7B" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#2D2B3B" vertical={false} />
+                  <XAxis dataKey="name" stroke="#9E9AA7" fontSize={10} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#9E9AA7" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `${currencySymbol}${Number(val) >= 1000 ? (val/1000).toFixed(0) + "k" : val}`} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: "#13111C", borderColor: "#3B384D", borderRadius: "12px", fontSize: "11px", color: "#fff" }}
+                    formatter={(value: any) => [`${currencySymbol}${Number(value).toLocaleString()}`, "Value"]}
+                  />
+                  <Area type="monotone" dataKey="value" stroke="#D988A1" strokeWidth={2.5} fillOpacity={1} fill="url(#splitDynamicGrad)" name="Trajectory" />
+                  {dynamicContext.data.some(d => d.secondary !== undefined) && (
+                    <Area type="monotone" dataKey="secondary" stroke="#EF4444" strokeWidth={1.5} strokeDasharray="4 4" fill="transparent" name="Secondary Threshold" />
+                  )}
+                </AreaChart>
+              ) : (
+                <PieChart>
+                  <Pie
+                    data={dynamicContext.data}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={52}
+                    outerRadius={80}
+                    paddingAngle={4}
+                  >
+                    {dynamicContext.data.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={(entry as any).color || PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: "#13111C", borderColor: "#3B384D", borderRadius: "12px", fontSize: "11px", color: "#fff" }}
+                    formatter={(value: any) => [`${currencySymbol}${Number(value).toLocaleString()}`, "Amount"]}
+                  />
+                </PieChart>
+              )}
+            </ResponsiveContainer>
           </div>
-        )}
 
-        {/* TAB 3: INVOICE HEALTH */}
-        {activeTab === "invoices" && (
-          <div className="space-y-4 animate-in fade-in duration-300">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-[#1F1D2B]/80 p-3 rounded-xl border border-neutral-800/60">
-                <span className="text-[10px] text-[#9E9AA7] font-mono block">30+ Days Overdue Count</span>
-                <span className="text-base font-bold font-heading text-red-400 mt-0.5 block">
-                  {overdue30DaysCount} {overdue30DaysCount === 1 ? "Account" : "Accounts"}
-                </span>
+          {/* Legend for Pie/Bar views */}
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2 border-t border-neutral-800/60 max-h-16 overflow-y-auto">
+            {dynamicContext.data.map((item, idx) => (
+              <div key={idx} className="flex items-center gap-1.5 text-[10px]">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: (item as any).color || PIE_COLORS[idx % PIE_COLORS.length] }} />
+                <span className="text-neutral-300 font-medium truncate max-w-[110px]">{item.name}: {currencySymbol}{item.value.toLocaleString()}</span>
               </div>
-              <div className="bg-[#1F1D2B]/80 p-3 rounded-xl border border-neutral-800/60">
-                <span className="text-[10px] text-[#9E9AA7] font-mono block">Overdue Exposure Total</span>
-                <span className="text-base font-bold font-heading text-red-400 mt-0.5 block truncate">
-                  {currencySymbol}{overdue30DaysTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-[#1F1D2B]/60 p-4 rounded-2xl border border-neutral-800/60 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white font-heading">Invoice Settlement Distribution</span>
-                <span className="text-[10px] text-[#9E9AA7] font-mono">Paid vs Pending vs Overdue</span>
-              </div>
-              <div className="h-[200px] w-full pt-2 flex items-center justify-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={invoiceData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={75}
-                      paddingAngle={4}
-                    >
-                      {invoiceData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color || PIE_COLORS[index % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: "#13111C", borderColor: "#3B384D", borderRadius: "12px", fontSize: "11px", color: "#fff" }}
-                      formatter={(value: any) => [`${currencySymbol}${Number(value).toLocaleString()}`, ""]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Custom Legend */}
-              <div className="flex items-center justify-center gap-4 pt-1 border-t border-neutral-800/60">
-                {invoiceData.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-1.5 text-[11px]">
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                    <span className="text-neutral-300 font-medium">{item.name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-red-500/10 to-transparent border-l-2 border-red-500 p-3 rounded-r-xl">
-              <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider block font-mono">Section 43B(h) Regulatory Alert</span>
-              <p className="text-xs text-neutral-300 leading-relaxed mt-1">
-                MSME supplier invoices crossing 45 days face tax disallowance under Income Tax Act Section 43B(h). Immediate reconciliation recommended for all {overdue30DaysCount} overdue account(s).
-              </p>
-            </div>
+            ))}
           </div>
-        )}
+        </div>
+
+        {/* Contextual AI Note */}
+        <div className="bg-gradient-to-r from-[#D988A1]/10 to-transparent border-l-2 border-[#D988A1] p-3.5 rounded-r-xl">
+          <span className="text-[10px] font-bold text-[#D988A1] uppercase tracking-wider block font-mono">AARYA Dynamic Visualization Synthesis</span>
+          <p className="text-xs text-neutral-300 leading-relaxed mt-1">
+            {dynamicContext.insightNote}
+          </p>
+        </div>
 
       </div>
     </div>
@@ -630,22 +769,24 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
 
   const isLoading = status === "submitted" || status === "streaming";
 
-  // Automatically open split screen when chatbot generates a response (if user hasn't explicitly closed it)
+  // Automatically open split screen whenever the first/any question is asked or answer starts generating
   useEffect(() => {
     if (messages.length > 1 && !userClosedSplit) {
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg.role === "assistant" && lastMsg.id !== "msg_welcome") {
+      const hasAssistantReply = messages.some(m => m.role === "assistant" && !m.id.startsWith("msg_welcome") && !m.id.startsWith("msg_reinit"));
+      if (hasAssistantReply || status === "streaming" || status === "submitted") {
         setIsSplitView(true);
       }
     } else if (messages.length <= 1) {
       setIsSplitView(false);
       setUserClosedSplit(false);
     }
-  }, [messages, userClosedSplit]);
+  }, [messages, status, userClosedSplit]);
 
   // Watch for preseeded dashboard quick prompts (e.g. from Explain Your Math)
   useEffect(() => {
     if (preseededPrompt) {
+      setUserClosedSplit(false);
+      setIsSplitView(true);
       sendMessage({ text: preseededPrompt });
       if (clearPreseededPrompt) {
         clearPreseededPrompt();
@@ -690,6 +831,8 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
   }, [messages, isLoading]);
 
   const handleSuggestedClick = (promptText: string) => {
+    setUserClosedSplit(false);
+    setIsSplitView(true);
     sendMessage({ text: promptText });
   };
 
@@ -710,6 +853,8 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
+    setUserClosedSplit(false);
+    setIsSplitView(true);
     sendMessage({ text: input });
     setInput("");
   };
@@ -984,8 +1129,13 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
               state={state}
               currencySymbol={currencySymbol}
               latestResponseText={
-                messages.filter(m => m.role === "assistant" && m.id !== "msg_welcome").slice(-1)[0]
-                  ? parseMessageText(messages.filter(m => m.role === "assistant" && m.id !== "msg_welcome").slice(-1)[0].parts as any[]).displayText
+                messages.filter(m => m.role === "assistant" && !m.id.startsWith("msg_welcome") && !m.id.startsWith("msg_reinit")).slice(-1)[0]
+                  ? parseMessageText(messages.filter(m => m.role === "assistant" && !m.id.startsWith("msg_welcome") && !m.id.startsWith("msg_reinit")).slice(-1)[0].parts as any[]).displayText
+                  : ""
+              }
+              latestUserQuestion={
+                messages.filter(m => m.role === "user").slice(-1)[0]
+                  ? (messages.filter(m => m.role === "user").slice(-1)[0].parts as any[])?.map((p: any) => p.type === "text" ? p.text : "").join(" ") || ""
                   : ""
               }
               onClose={() => {
