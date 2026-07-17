@@ -14,7 +14,7 @@ import { AuditTrailView } from "./components/AuditTrailView";
 import { SettingsView } from "./components/SettingsView";
 import { UploadView } from "./components/UploadView";
 import { FounderSummaryView } from "./components/FounderSummaryView";
-import { postChat, supabase } from "./services/apiClient";
+import { supabase } from "./services/apiClient";
 
 export default function App() {
   // ── App state — always starts as NOT logged in ─────────────────────────────
@@ -38,22 +38,56 @@ export default function App() {
 
   const [currentView, setView] = useState<ViewType>("landing");
   const [quickCustomerName, setQuickCustomerName] = useState<string>("");
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    try {
-      const storedTheme = localStorage.getItem("nova_cfo_theme");
-      if (storedTheme === "dark" || storedTheme === "light") {
-        return storedTheme;
-      }
-    } catch (e) {
-      console.error("Failed to parse cached theme state:", e);
-    }
-    return "dark";
-  });
+  const [preseededPrompt, setPreseededPrompt] = useState<string | null>(null);
 
   // ── Persist state to localStorage ─────────────────────────────────────────
   useEffect(() => {
     localStorage.setItem("aarya_business_state", JSON.stringify(state));
   }, [state]);
+
+  // ── Public Profile Check & Strict Routing ────────────────────────────────
+  // Do not rely solely on supabase.auth.getSession(). After confirming a session exists,
+  // explicitly query the public users table for the matching user_id.
+  const checkUserProfileAndRoute = async (user: any) => {
+    if (!supabase || !user) return;
+    try {
+      const { data: dbUser } = await supabase
+        .from("users")
+        .select("id, company_id, role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (dbUser && dbUser.company_id) {
+        // Both session and public users row exist: allow access to /dashboard
+        setState(prev => ({
+          ...prev,
+          loggedIn: true,
+          userEmail: user.email ?? prev.userEmail,
+          companyId: dbUser.company_id,
+          onboarded: true,
+        }));
+        setView(prev => (prev === "landing" || prev === "auth" || prev === "onboarding" ? "dashboard" : prev));
+      } else {
+        // Auth session exists but public users row does NOT exist: force redirect to /onboarding
+        setState(prev => ({
+          ...prev,
+          loggedIn: true,
+          userEmail: user.email ?? prev.userEmail,
+          onboarded: false,
+        }));
+        setView("onboarding");
+      }
+    } catch (err) {
+      console.error("Error checking user profile in public.users:", err);
+      setState(prev => ({
+        ...prev,
+        loggedIn: true,
+        userEmail: user.email ?? prev.userEmail,
+        onboarded: false,
+      }));
+      setView("onboarding");
+    }
+  };
 
   // ── Restore Supabase session on mount ──────────────────────────────────────
   // Also subscribe to auth events so any sign-in / sign-out / token refresh
@@ -64,17 +98,7 @@ export default function App() {
     // Restore existing session (e.g. after page refresh)
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        const email = session.user.email ?? "";
-        setState(prev => ({
-          ...prev,
-          loggedIn: true,
-          userEmail: email,
-        }));
-        // Decide which view to land on
-        setView(prev => {
-          const s = JSON.parse(localStorage.getItem("aarya_business_state") || "{}");
-          return s?.onboarded ? "dashboard" : "onboarding";
-        });
+        checkUserProfileAndRoute(session.user);
       }
     });
 
@@ -82,11 +106,7 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         if (session?.user) {
-          setState(prev => ({
-            ...prev,
-            loggedIn: true,
-            userEmail: session.user.email ?? prev.userEmail,
-          }));
+          checkUserProfileAndRoute(session.user);
         } else {
           // Signed out — reset to clean state
           setState({ ...initialBusinessState });
@@ -98,15 +118,10 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Handle theme class on document element
+  // Always keep dark mode active
   useEffect(() => {
-    localStorage.setItem("nova_cfo_theme", theme);
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [theme]);
+    document.documentElement.classList.add("dark");
+  }, []);
 
   // Global action controllers
   const logActivity = (act: Omit<Activity, "id" | "timestamp">) => {
@@ -200,7 +215,7 @@ export default function App() {
     });
   };
 
-  const handleLoginSuccess = (email: string) => {
+  const handleLoginSuccess = (email: string, authMode: "login" | "signup") => {
     setState(prev => ({
       ...prev,
       loggedIn: true,
@@ -208,14 +223,25 @@ export default function App() {
     }));
     logActivity({
       actionType: "onboarding",
-      description: `Successful sign-in with client node: ${email}`,
+      description: `Successful ${authMode === "login" ? "sign-in" : "sign-up"} with client node: ${email}`,
       amount: 0
     });
 
-    if (state.onboarded) {
-      setView("dashboard");
+    // Verify user profile in public.users table before routing
+    if (supabase) {
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user) {
+          checkUserProfileAndRoute(user);
+        } else {
+          setView("onboarding");
+        }
+      });
     } else {
-      setView("onboarding");
+      if (authMode === "login") {
+        setView("dashboard");
+      } else {
+        setView("onboarding");
+      }
     }
   };
 
@@ -259,45 +285,8 @@ export default function App() {
 
   // Navigates directly into virtual CFO chat with preseeded prompt
   const handleAskNovaQuick = (prompt: string) => {
+    setPreseededPrompt(prompt);
     setView("chat");
-    setTimeout(() => {
-      const userMsg: CfoMessage = {
-        id: "msg_quick_" + Date.now(),
-        sender: "user",
-        text: prompt,
-        timestamp: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
-      };
-      addChatMessage(userMsg);
-      // Trigger API fetch
-      triggerChatFetch(userMsg, prompt);
-    }, 100);
-  };
-
-  const triggerChatFetch = async (userMsg: CfoMessage, text: string) => {
-    try {
-      const data = await postChat({
-        messages: [...state.chatHistory, userMsg],
-        context: {
-          businessName: state.businessName,
-          industry: state.industry,
-          currency: state.currency,
-          currencySymbol: state.currencySymbol,
-          startingBalance: state.startingBalance,
-          ledger: state.ledger,
-          invoices: state.invoices,
-          activities: state.activities
-        }
-      });
-      
-      addChatMessage({
-        id: "msg_agent_quick_" + Date.now(),
-        sender: "agent",
-        text: data.reply || "Financial assessment failed to initialize.",
-        timestamp: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
-      });
-    } catch (err) {
-      console.error("Chat proxy error during quick prompt:", err);
-    }
   };
 
   // Link from other parts of dashboard directly into deep customer details inside LedgerView
@@ -341,6 +330,17 @@ export default function App() {
     );
   }
 
+  // Enforce Strict Routing:
+  // If user is logged in (auth session exists) but not onboarded (no public users row), force redirect to onboarding view
+  if (state.loggedIn && !state.onboarded) {
+    return (
+      <OnboardingView 
+        defaultEmail={state.userEmail || ""}
+        onComplete={handleOnboardingComplete}
+      />
+    );
+  }
+
   // CORE APPLICATION LAYOUT (Sidebar + Main Content Panel + BottomNav)
   return (
     <div 
@@ -361,8 +361,6 @@ export default function App() {
         setView={setView}
         businessName={state.businessName}
         onLogout={handleLogout}
-        theme={theme}
-        setTheme={setTheme}
       />
 
       {/* Main Content (Center, Flexible) + AI Copilot Panel (Right, 350px) Layout */}
@@ -396,9 +394,9 @@ export default function App() {
           {currentView === "chat" && (
             <CfoChatView 
               state={state}
-              addChatMessage={addChatMessage}
-              clearChat={clearChat}
               currencySymbol={state.currencySymbol}
+              preseededPrompt={preseededPrompt}
+              clearPreseededPrompt={() => setPreseededPrompt(null)}
             />
           )}
 
@@ -438,8 +436,6 @@ export default function App() {
               state={state}
               onUpdateBusiness={updateBusinessMetadata}
               onLogout={handleLogout}
-              theme={theme}
-              setTheme={setTheme}
             />
           )}
         </main>

@@ -1,5 +1,5 @@
 import React from "react";
-import { Sparkles, ArrowRight, TrendingUp, Sparkle, MessageSquare, DollarSign, ArrowUpRight, Clock, Check, Moon, Sun, ShieldCheck } from "lucide-react";
+import { Sparkles, ArrowRight, TrendingUp, Sparkle, MessageSquare, DollarSign, ArrowUpRight, Clock, Check, ShieldCheck } from "lucide-react";
 import { motion } from "motion/react";
 
 interface LandingProps {
@@ -45,7 +45,7 @@ export const LandingView: React.FC<LandingProps> = ({ onStart, loggedIn }) => {
         <div className="flex items-center gap-2.5">
           {/* Brand Accent Logo Icon */}
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#D988A1] to-[#8A5A7B] flex items-center justify-center shadow-lg shadow-[#D988A1]/10">
-            <Sparkle className="w-4.5 h-4.5 text-white stroke-[2.5]" />
+            <Sparkle className="w-4 h-4 text-white stroke-[2.5]" />
           </div>
           <span className="font-heading font-black text-xl tracking-wider text-white">AARYA</span>
         </div>
@@ -75,7 +75,7 @@ export const LandingView: React.FC<LandingProps> = ({ onStart, loggedIn }) => {
             className="inline-flex self-start items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#1F1D2B]/80 border border-[#D988A1]/20 text-[11px] font-bold uppercase tracking-wider text-[#D988A1]"
           >
             <Sparkles className="w-3.5 h-3.5 text-[#D988A1]" />
-            <span>Consulting & Services • AARYA Finance Command Center</span>
+            <span>Consulting &amp; Services · AARYA Finance Command Center</span>
           </motion.div>
 
           {/* Large Bold Headline */}
@@ -146,7 +146,7 @@ export const LandingView: React.FC<LandingProps> = ({ onStart, loggedIn }) => {
           </motion.div>
         </div>
 
-        {/* Right Column: Layered Premium Glassmorphism Cards Matching the Design exactly */}
+        {/* Right Column: Layered Premium Glassmorphism Cards */}
         <div className="lg:col-span-6 relative h-[480px] md:h-[580px] w-full flex items-center justify-center mt-8 lg:mt-0">
           
           {/* Subtle Ambient Decorative Ring */}
@@ -205,7 +205,7 @@ export const LandingView: React.FC<LandingProps> = ({ onStart, loggedIn }) => {
             </div>
           </div>
 
-          {/* FRONT MOCKUP: Live Dashboard metrics mirroring the image exactly */}
+          {/* FRONT MOCKUP: Live Dashboard metrics */}
           <div 
             className="absolute animate-float-1 z-20 w-[280px] md:w-[340px] h-[390px] md:h-[465px] rounded-3xl bg-[#13111C]/95 backdrop-blur-3xl border border-white/10 p-5 shadow-[0_30px_70px_-10px_rgba(0,0,0,0.9)]"
             style={{
@@ -213,7 +213,7 @@ export const LandingView: React.FC<LandingProps> = ({ onStart, loggedIn }) => {
               boxShadow: "0 0 50px rgba(217, 136, 161, 0.1), inset 0 1px 1px rgba(255, 255, 255, 0.15)",
             }}
           >
-            {/* Header with active tag and price metrics */}
+            {/* Header with active tag */}
             <div className="flex justify-between items-center pb-3 border-b border-white/5 mb-3.5">
               <div className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-red-500/80 inline-block"></span>
@@ -299,7 +299,7 @@ export const LandingView: React.FC<LandingProps> = ({ onStart, loggedIn }) => {
           <div className="flex flex-wrap items-center justify-center gap-6 md:gap-8 text-xs text-[#9E9AA7] font-semibold font-mono">
             <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#D988A1] stroke-[3]" /> NO CREDIT CARD</span>
             <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#D988A1] stroke-[3]" /> AUTOMATED INGESTION</span>
-            <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#D988A1] stroke-[3]" /> SECURE & COMPLIANT</span>
+            <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#D988A1] stroke-[3]" /> SECURE &amp; COMPLIANT</span>
           </div>
         </div>
       </section>
