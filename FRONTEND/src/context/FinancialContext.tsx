@@ -9,6 +9,9 @@ export interface FinancialContextType {
   runwayMonths: number;
   runwayMonthsFormatted: string;
   runwayStatus: "SECURE" | "WARNING" | "CRITICAL";
+  transactions: any[];
+  overdue30DaysCount: number;
+  overdue30DaysTotal: number;
   loading: boolean;
   refreshFinancials: () => Promise<void>;
 }
@@ -36,6 +39,7 @@ export const FinancialProvider: React.FC<FinancialProviderProps> = ({ state, chi
 
   const [receivables, setReceivables] = useState<number>(ledgerReceivables);
   const [payables, setPayables] = useState<number>(ledgerPayables);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Keep local state in sync if API hasn't loaded or when ledger changes directly
@@ -56,10 +60,15 @@ export const FinancialProvider: React.FC<FinancialProviderProps> = ({ state, chi
         getTransactions({ transaction_type: "expense", limit: 500 }) as Promise<any>,
       ]);
 
-      const incomeTotal = (incomeRes?.data?.data ?? []).reduce(
+      const incomeTxs = incomeRes?.data?.data ?? [];
+      const expenseTxs = expenseRes?.data?.data ?? [];
+      const allTxs = [...incomeTxs, ...expenseTxs];
+      setTransactions(allTxs);
+
+      const incomeTotal = incomeTxs.reduce(
         (sum: number, tx: any) => sum + Math.abs(Number(tx.amount) || 0), 0
       );
-      const expenseTotal = (expenseRes?.data?.data ?? []).reduce(
+      const expenseTotal = expenseTxs.reduce(
         (sum: number, tx: any) => sum + Math.abs(Number(tx.amount) || 0), 0
       );
 
@@ -88,6 +97,58 @@ export const FinancialProvider: React.FC<FinancialProviderProps> = ({ state, chi
   const runwayMonthsFormatted = runwayMonthsNum.toFixed(1);
   const runwayStatus = runwayMonthsNum >= 8 ? "SECURE" : runwayMonthsNum >= 4 ? "WARNING" : "CRITICAL";
 
+  // Compute live 30 days overdue items from backend transactions and state fallback
+  const { overdue30DaysCount, overdue30DaysTotal } = useMemo(() => {
+    let count = 0;
+    let total = 0;
+    const now = Date.now();
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    const countedIds = new Set<string>();
+
+    // 1. Check live backend transactions (specifically income / receivables crossing 30 days)
+    if (transactions.length > 0) {
+      for (const tx of transactions) {
+        if (tx.transaction_type === "income" && tx.due_date) {
+          const dueTime = new Date(tx.due_date).getTime();
+          if (!isNaN(dueTime) && (now - dueTime) >= thirtyDaysMs) {
+            count++;
+            total += Math.abs(Number(tx.amount) || 0);
+            if (tx.id) countedIds.add(String(tx.id));
+            if (tx.description) countedIds.add(tx.description.toLowerCase());
+          }
+        }
+      }
+    }
+
+    // 2. Check local invoices
+    for (const inv of state.invoices) {
+      if (inv.status === "Overdue" || inv.dueDate) {
+        const dueTime = inv.dueDate ? new Date(inv.dueDate).getTime() : NaN;
+        const isThirtyDays = !isNaN(dueTime) ? (now - dueTime) >= thirtyDaysMs : (inv.status === "Overdue");
+        if (isThirtyDays && !countedIds.has(inv.id) && !countedIds.has(inv.customer.toLowerCase())) {
+          count++;
+          total += inv.amount;
+          countedIds.add(inv.id);
+        }
+      }
+    }
+
+    // 3. Check local ledger items
+    for (const item of state.ledger) {
+      if (item.overdue && item.amount > 0 && item.dueDate) {
+        const dueTime = new Date(item.dueDate).getTime();
+        const isThirtyDays = !isNaN(dueTime) ? (now - dueTime) >= thirtyDaysMs : true;
+        if (isThirtyDays && !countedIds.has(item.id) && !countedIds.has(item.name.toLowerCase())) {
+          count++;
+          total += item.amount;
+          countedIds.add(item.id);
+        }
+      }
+    }
+
+    return { overdue30DaysCount: count, overdue30DaysTotal: total };
+  }, [transactions, state.invoices, state.ledger]);
+
   const value = useMemo(() => ({
     receivables,
     payables,
@@ -95,6 +156,9 @@ export const FinancialProvider: React.FC<FinancialProviderProps> = ({ state, chi
     runwayMonths: runwayMonthsNum,
     runwayMonthsFormatted,
     runwayStatus,
+    transactions,
+    overdue30DaysCount,
+    overdue30DaysTotal,
     loading,
     refreshFinancials
   }), [
@@ -104,6 +168,9 @@ export const FinancialProvider: React.FC<FinancialProviderProps> = ({ state, chi
     runwayMonthsNum,
     runwayMonthsFormatted,
     runwayStatus,
+    transactions,
+    overdue30DaysCount,
+    overdue30DaysTotal,
     loading,
     refreshFinancials
   ]);

@@ -54,6 +54,8 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
     payables, 
     netCashFlow, 
     runwayMonthsFormatted: runwayMonths, 
+    overdue30DaysCount,
+    overdue30DaysTotal,
     loading: financialsLoading 
   } = useFinancials();
 
@@ -109,7 +111,17 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
             <span className="text-base">⚠️</span>
             <span className="text-xs font-semibold text-white tracking-wide uppercase font-mono bg-[#D988A1]/20 px-2.5 py-0.5 rounded-full">Briefing</span>
             <p className="text-xs text-white/90 font-medium">
-              3 invoices crossing 30 days overdue today. Recommend sending a collection reminder.
+              {financialsLoading ? (
+                <span>Checking backend transaction ledger for overdue items...</span>
+              ) : overdue30DaysCount > 0 ? (
+                <span>
+                  {overdue30DaysCount} {overdue30DaysCount === 1 ? "invoice/account" : "invoices/accounts"} crossing 30 days overdue today ({state.currencySymbol}{overdue30DaysTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })} exposure). Recommend sending a collection reminder.
+                </span>
+              ) : (
+                <span>
+                  0 invoices crossing 30 days overdue today. All customer receivables and accounts are within normal payment terms.
+                </span>
+              )}
             </p>
           </div>
           <button 
