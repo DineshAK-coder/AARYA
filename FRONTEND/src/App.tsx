@@ -14,7 +14,6 @@ import { AuditTrailView } from "./components/AuditTrailView";
 import { SettingsView } from "./components/SettingsView";
 import { UploadView } from "./components/UploadView";
 import { FounderSummaryView } from "./components/FounderSummaryView";
-import { MemorySearchView } from "./components/MemorySearchView";
 import { FinancialProvider } from "./context/FinancialContext";
 import { supabase } from "./services/apiClient";
 
@@ -403,10 +402,6 @@ export default function App() {
                 clearPreseededPrompt={() => setPreseededPrompt(null)}
               />
             </div>
-
-            {currentView === "memory" && (
-              <MemorySearchView />
-            )}
 
             {currentView === "ledger" && (
               <LedgerView 

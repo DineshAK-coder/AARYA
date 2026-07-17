@@ -6,8 +6,7 @@ import {
   Home, 
   LogOut,
   Sparkles,
-  Upload,
-  Database
+  Upload
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ViewType } from "../types";
@@ -23,7 +22,6 @@ export const Sidebar: React.FC<NavProps> = ({ currentView, setView, businessName
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "chat", label: "Ask AARYA Chat", icon: Sparkles },
-    { id: "memory", label: "Decision Memory", icon: Database },
     { id: "upload", label: "Data Upload", icon: Upload },
     { id: "founder", label: "Founder Summary", icon: TrendingUp },
     { id: "settings", label: "Settings", icon: Settings },
@@ -106,7 +104,6 @@ export const BottomNav: React.FC<{
   const tabs = [
     { id: "dashboard", label: "Home", icon: Home },
     { id: "chat", label: "Chat", icon: Sparkles },
-    { id: "memory", label: "Memory", icon: Database },
     { id: "upload", label: "Upload", icon: Upload },
     { id: "founder", label: "Summary", icon: TrendingUp },
     { id: "settings", label: "Settings", icon: Settings },

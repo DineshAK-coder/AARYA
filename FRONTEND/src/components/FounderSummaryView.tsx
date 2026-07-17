@@ -8,6 +8,9 @@ import {
   Sparkles, 
   Sliders, 
   CheckCircle2, 
+  XCircle,
+  MessageSquareMore,
+  ThumbsUp,
   RefreshCw, 
   BookmarkPlus, 
   Loader2, 
@@ -19,7 +22,7 @@ import {
   ChevronRight
 } from "lucide-react";
 import { BusinessState } from "../types";
-import { postChat, createDecision } from "../services/apiClient";
+import { postChat, createDecision, updateDecision } from "../services/apiClient";
 import { useFinancials } from "../context/FinancialContext";
 
 interface FounderSummaryViewProps {
@@ -33,6 +36,36 @@ interface StrategicDirective {
   category: 'compliance' | 'optimization' | 'growth';
   badge: string;
 }
+
+const DECISION_OPTIONS = [
+  {
+    key: "approve",
+    label: "I'll do this",
+    icon: CheckCircle2,
+    colorClass:
+      "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-400",
+    badgeClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
+    badgeIcon: ThumbsUp,
+  },
+  {
+    key: "decline",
+    label: "Won't pursue",
+    icon: XCircle,
+    colorClass:
+      "border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:border-red-400",
+    badgeClass: "bg-red-500/20 text-red-300 border-red-500/40",
+    badgeIcon: XCircle,
+  },
+  {
+    key: "discuss",
+    label: "Let's discuss",
+    icon: MessageSquareMore,
+    colorClass:
+      "border-[#D988A1]/40 bg-[#D988A1]/10 text-[#D988A1] hover:bg-[#D988A1]/20 hover:border-[#D988A1]",
+    badgeClass: "bg-[#D988A1]/20 text-[#D988A1] border-[#D988A1]/40",
+    badgeIcon: MessageSquareMore,
+  },
+] as const;
 
 export const FounderSummaryView: React.FC<FounderSummaryViewProps> = ({ state }) => {
   // ── Baseline financial metrics consumed from Shared FinancialContext ───────
@@ -61,8 +94,9 @@ export const FounderSummaryView: React.FC<FounderSummaryViewProps> = ({ state })
   ]);
 
   // ── Logging & Action States ────────────────────────────────────────────────
-  const [loggingId, setLoggingId] = useState<string | null>(null);
-  const [loggedDecisions, setLoggedDecisions] = useState<Record<string, boolean>>({});
+  const [decisionLoading, setDecisionLoading] = useState<Record<string, boolean>>({});
+  const [decisionChoices, setDecisionChoices] = useState<Record<string, string>>({});
+  const [decisionDbIds, setDecisionDbIds] = useState<Record<string, string>>({});
   const [campaignStatus, setCampaignStatus] = useState<'idle' | 'running' | 'success'>('idle');
 
   // ── Dynamic Runway Metrics ─────────────────────────────────────────────────
@@ -119,21 +153,33 @@ export const FounderSummaryView: React.FC<FounderSummaryViewProps> = ({ state })
     }
   };
 
-  const handleLogDecision = async (directive: StrategicDirective) => {
-    setLoggingId(directive.id);
+  const handleChooseOption = async (directive: StrategicDirective, choiceKey: string) => {
+    setDecisionLoading(prev => ({ ...prev, [directive.id]: true }));
     try {
-      await createDecision({
-        context: `Founder Summary Directive: ${directive.title}`,
-        ai_recommendation: directive.text,
-        founder_decision: "Accepted and initiated by Founder via Executive Brief."
-      });
-      setLoggedDecisions(prev => ({ ...prev, [directive.id]: true }));
+      const existingDbId = decisionDbIds[directive.id];
+      if (existingDbId) {
+        await updateDecision(existingDbId, {
+          founder_decision: choiceKey,
+          ai_recommendation: directive.text,
+        });
+      } else {
+        const res = await createDecision({
+          context: `Founder Summary Directive: ${directive.title}`,
+          ai_recommendation: directive.text,
+          founder_decision: choiceKey,
+        }) as { success?: boolean; data?: { id: string } };
+
+        if (res?.data?.id) {
+          setDecisionDbIds(prev => ({ ...prev, [directive.id]: res.data!.id }));
+        }
+      }
+      setDecisionChoices(prev => ({ ...prev, [directive.id]: choiceKey }));
     } catch (err) {
-      console.error("[FounderSummary] Failed to log decision:", err);
-      // Fallback mark as logged so user sees responsive interaction
-      setLoggedDecisions(prev => ({ ...prev, [directive.id]: true }));
+      console.error("[FounderSummary] Failed to log decision choice:", err);
+      // Fallback update choice locally so user experiences responsive UI even if offline/dev
+      setDecisionChoices(prev => ({ ...prev, [directive.id]: choiceKey }));
     } finally {
-      setLoggingId(null);
+      setDecisionLoading(prev => ({ ...prev, [directive.id]: false }));
     }
   };
 
@@ -397,31 +443,30 @@ export const FounderSummaryView: React.FC<FounderSummaryViewProps> = ({ state })
             </h3>
           </div>
           <p className="text-xs text-neutral-500">
-            Click <span className="font-semibold text-neutral-700 dark:text-neutral-300">Log to Memory</span> to record any directive directly into your Decision Memory Ledger.
+            Select an option (`I'll do this`, `Won't pursue`, `Let's discuss`) to record your strategic choice directly into your Decision Memory Ledger.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs text-neutral-600 dark:text-neutral-400">
           {directives.map((item) => {
-            const isLogged = loggedDecisions[item.id];
-            const isLogging = loggingId === item.id;
+            const chosenOption = decisionChoices[item.id];
+            const chosen = DECISION_OPTIONS.find((o) => o.key === chosenOption);
+            const isLoading = decisionLoading[item.id] ?? false;
 
             return (
               <div 
                 key={item.id} 
-                className="p-5 rounded-2xl bg-neutral-50 dark:bg-neutral-900/40 border border-neutral-200/60 dark:border-neutral-800 flex flex-col justify-between gap-4 transition hover:border-neutral-300 dark:hover:border-neutral-700"
+                className={`p-5 rounded-2xl border flex flex-col justify-between gap-4 transition ${
+                  chosen 
+                    ? "border-neutral-700/60 bg-[#13111C]/60 text-neutral-300" 
+                    : "bg-neutral-50 dark:bg-neutral-900/40 border-neutral-200/60 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700"
+                }`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] font-mono uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700">
                       {item.badge}
                     </span>
-                    {isLogged && (
-                      <span className="text-[10px] font-mono text-emerald-500 flex items-center gap-1 font-bold">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Recorded in Memory</span>
-                      </span>
-                    )}
                   </div>
                   <span className="text-sm font-bold text-neutral-900 dark:text-white block mt-1">
                     {item.title}
@@ -431,33 +476,48 @@ export const FounderSummaryView: React.FC<FounderSummaryViewProps> = ({ state })
                   </p>
                 </div>
 
-                <div className="pt-3 border-t border-neutral-200/60 dark:border-neutral-800/80 flex items-center justify-end">
-                  <button
-                    onClick={() => handleLogDecision(item)}
-                    disabled={isLogged || isLogging}
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
-                      isLogged 
-                        ? 'bg-emerald-500/10 text-emerald-500 cursor-default' 
-                        : 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:opacity-90 shadow-sm'
-                    }`}
-                  >
-                    {isLogging ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Logging...</span>
-                      </>
-                    ) : isLogged ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Logged to Ledger</span>
-                      </>
-                    ) : (
-                      <>
-                        <BookmarkPlus className="w-3.5 h-3.5" />
-                        <span>Log to Memory</span>
-                      </>
-                    )}
-                  </button>
+                <div className="pt-3 border-t border-neutral-200/60 dark:border-neutral-800/80">
+                  {!chosen ? (
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-2.5">
+                        <Sparkles className="w-3 h-3 text-[#D988A1]" />
+                        <span className="text-[9px] font-mono uppercase tracking-widest text-[#D988A1] font-bold">
+                          Founder Decision Required
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {DECISION_OPTIONS.map((opt) => {
+                          const Icon = opt.icon;
+                          return (
+                            <button
+                              key={opt.key}
+                              id={`directive-${item.id}-${opt.key}`}
+                              disabled={isLoading}
+                              onClick={() => handleChooseOption(item, opt.key)}
+                              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[10px] font-medium transition-all duration-200 active:scale-95 disabled:opacity-40 ${opt.colorClass}`}
+                            >
+                              <Icon className="w-3 h-3 shrink-0" />
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {isLoading && (
+                        <div className="flex items-center gap-1.5 mt-2">
+                          <Loader2 className="w-3 h-3 text-[#D988A1] animate-spin" />
+                          <span className="text-[9px] text-neutral-500 font-mono">Logging decision…</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2">
+                      <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[10px] font-semibold ${chosen.badgeClass}`}>
+                        <chosen.badgeIcon className="w-3 h-3 shrink-0" />
+                        Logged: {chosen.label}
+                      </div>
+                      <span className="text-[9px] text-neutral-500 font-mono">Decision recorded ✓</span>
+                    </div>
+                  )}
                 </div>
               </div>
             );

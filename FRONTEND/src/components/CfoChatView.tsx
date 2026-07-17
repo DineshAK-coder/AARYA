@@ -628,8 +628,8 @@ export const CfoChatView: React.FC<CfoChatProps> = ({
                     const matchScore = Math.round((item.similarity ?? 0) * 100);
                     const outcomeColor = 
                       item.founder_decision === "approve" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30" :
-                      item.founder_decision === "reject" ? "bg-red-500/10 text-red-500 border-red-500/30" :
-                      item.founder_decision === "modify" ? "bg-amber-500/10 text-amber-500 border-amber-500/30" :
+                      item.founder_decision === "decline" || item.founder_decision === "reject" ? "bg-red-500/10 text-red-500 border-red-500/30" :
+                      item.founder_decision === "discuss" || item.founder_decision === "modify" ? "bg-[#D988A1]/10 text-[#D988A1] border-[#D988A1]/30" :
                       "bg-neutral-500/10 text-neutral-400 border-neutral-500/30";
 
                     return (

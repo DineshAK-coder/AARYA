@@ -72,5 +72,4 @@ export type ViewType =
   | "audit"
   | "settings"
   | "upload"
-  | "founder"
-  | "memory";
+  | "founder";
