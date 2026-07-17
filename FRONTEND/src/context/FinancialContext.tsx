@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { BusinessState } from "../types";
-import { getTransactions } from "../services/apiClient";
+import { getTransactions, getSnapshots } from "../services/apiClient";
 
 export interface FinancialContextType {
   receivables: number;
@@ -10,6 +10,7 @@ export interface FinancialContextType {
   runwayMonthsFormatted: string;
   runwayStatus: "SECURE" | "WARNING" | "CRITICAL";
   transactions: any[];
+  snapshots: any[];
   overdue30DaysCount: number;
   overdue30DaysTotal: number;
   loading: boolean;
@@ -40,30 +41,35 @@ export const FinancialProvider: React.FC<FinancialProviderProps> = ({ state, chi
   const [receivables, setReceivables] = useState<number>(ledgerReceivables);
   const [payables, setPayables] = useState<number>(ledgerPayables);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [snapshots, setSnapshots] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Keep local state in sync if API hasn't loaded or when ledger changes directly
+  // Sync local ledger totals only if API fetch failed or offline
   useEffect(() => {
-    if (!loading && receivables === 0 && ledgerReceivables > 0) {
+    if (!loading && transactions.length === 0 && receivables === 0 && ledgerReceivables > 0 && state.ledger.length > 0) {
       setReceivables(ledgerReceivables);
     }
-    if (!loading && payables === 0 && ledgerPayables > 0) {
+    if (!loading && transactions.length === 0 && payables === 0 && ledgerPayables > 0 && state.ledger.length > 0) {
       setPayables(ledgerPayables);
     }
-  }, [ledgerReceivables, ledgerPayables, loading, receivables, payables]);
+  }, [ledgerReceivables, ledgerPayables, loading, receivables, payables, transactions.length, state.ledger.length]);
 
   const refreshFinancials = useCallback(async () => {
     setLoading(true);
     try {
-      const [incomeRes, expenseRes] = await Promise.all([
+      const [incomeRes, expenseRes, snapshotsRes] = await Promise.all([
         getTransactions({ transaction_type: "income", limit: 500 }) as Promise<any>,
         getTransactions({ transaction_type: "expense", limit: 500 }) as Promise<any>,
+        getSnapshots({ limit: 50 }) as Promise<any>,
       ]);
 
       const incomeTxs = incomeRes?.data?.data ?? [];
       const expenseTxs = expenseRes?.data?.data ?? [];
       const allTxs = [...incomeTxs, ...expenseTxs];
       setTransactions(allTxs);
+
+      const snapshotsData = snapshotsRes?.data?.data ?? [];
+      setSnapshots(snapshotsData);
 
       const incomeTotal = incomeTxs.reduce(
         (sum: number, tx: any) => sum + Math.abs(Number(tx.amount) || 0), 0
@@ -72,8 +78,9 @@ export const FinancialProvider: React.FC<FinancialProviderProps> = ({ state, chi
         (sum: number, tx: any) => sum + Math.abs(Number(tx.amount) || 0), 0
       );
 
-      setReceivables(incomeTotal > 0 ? incomeTotal : ledgerReceivables);
-      setPayables(expenseTotal > 0 ? expenseTotal : ledgerPayables);
+      // Trust the database transaction totals when API resolves successfully
+      setReceivables(incomeTotal);
+      setPayables(expenseTotal);
     } catch (err) {
       console.warn("[FinancialContext] Could not fetch transactions API, using ledger fallback:", err);
       setReceivables(ledgerReceivables);
@@ -157,6 +164,7 @@ export const FinancialProvider: React.FC<FinancialProviderProps> = ({ state, chi
     runwayMonthsFormatted,
     runwayStatus,
     transactions,
+    snapshots,
     overdue30DaysCount,
     overdue30DaysTotal,
     loading,
@@ -169,6 +177,7 @@ export const FinancialProvider: React.FC<FinancialProviderProps> = ({ state, chi
     runwayMonthsFormatted,
     runwayStatus,
     transactions,
+    snapshots,
     overdue30DaysCount,
     overdue30DaysTotal,
     loading,

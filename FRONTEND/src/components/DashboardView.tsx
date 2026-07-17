@@ -57,19 +57,86 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
     overdue30DaysCount,
     overdue30DaysTotal,
     transactions = [],
+    snapshots = [],
     loading: financialsLoading 
   } = useFinancials();
 
-  // Simulated cash flow timeline for chart (4 weeks) — uses live receivables
-  const chartBase = receivables > 0 ? receivables : (state.startingBalance > 0 ? state.startingBalance : 15254.37);
-  const chartData = [
-    { name: "Week 1", Balance: chartBase * 0.72 },
-    { name: "Week 2", Balance: chartBase * 0.88 },
-    { name: "Week 3", Balance: chartBase * 0.79 },
-    { name: "Week 4", Balance: chartBase },
-  ];
+  // Cash flow timeline for chart — prioritizes database snapshots and transactions before local state
+  const chartData = useMemo(() => {
+    // 1. Check live database snapshots first
+    if (snapshots.length >= 2) {
+      return [...snapshots]
+        .sort((a, b) => new Date(a.snapshot_date).getTime() - new Date(b.snapshot_date).getTime())
+        .map((s) => {
+          const dt = new Date(s.snapshot_date);
+          const name = !isNaN(dt.getTime()) ? dt.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : s.snapshot_date;
+          return { name, Balance: Math.round(Number(s.cash_balance) || 0) };
+        });
+    }
 
-  // Invoice Breakdown for Pie Chart — combines backend transactions, local invoices, and graceful fallback
+    // 2. Aggregate from live database transactions chronologically
+    if (transactions.length > 0) {
+      const sortedTxs = [...transactions]
+        .filter(tx => tx.due_date || tx.created_at)
+        .sort((a, b) => new Date(a.due_date || a.created_at).getTime() - new Date(b.due_date || b.created_at).getTime());
+
+      if (sortedTxs.length > 0) {
+        const dateMap = new Map<string, number>();
+        let runningBalance = state.startingBalance > 0 ? state.startingBalance : 0;
+        
+        for (const tx of sortedTxs) {
+          const dt = new Date(tx.due_date || tx.created_at);
+          const dateKey = !isNaN(dt.getTime()) 
+            ? dt.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+            : "Recent";
+          
+          const amt = Math.abs(Number(tx.amount) || 0);
+          if (tx.transaction_type === "income") {
+            runningBalance += amt;
+          } else if (tx.transaction_type === "expense") {
+            runningBalance -= amt;
+          } else {
+            runningBalance += amt;
+          }
+          dateMap.set(dateKey, runningBalance);
+        }
+
+        const points = Array.from(dateMap.entries()).map(([name, Balance]) => ({ name, Balance }));
+        if (points.length >= 2) {
+          if (points.length > 8) {
+            const step = Math.ceil(points.length / 8);
+            const sampled = [];
+            for (let i = 0; i < points.length; i += step) {
+              sampled.push(points[i]);
+            }
+            if (sampled[sampled.length - 1] !== points[points.length - 1]) {
+              sampled.push(points[points.length - 1]);
+            }
+            return sampled;
+          }
+          return points;
+        } else if (points.length === 1) {
+          const singlePoint = points[0];
+          const startBal = state.startingBalance > 0 ? state.startingBalance : singlePoint.Balance * 0.85;
+          return [
+            { name: "Start", Balance: startBal },
+            { name: singlePoint.name, Balance: singlePoint.Balance }
+          ];
+        }
+      }
+    }
+
+    // 3. If no transactions/snapshots yet, show baseline if non-zero, otherwise return empty
+    if (receivables > 0 || state.startingBalance > 0) {
+      const base = receivables > 0 ? receivables : state.startingBalance;
+      return [
+        { name: "Baseline", Balance: base * 0.9 },
+        { name: "Current", Balance: base },
+      ];
+    }
+
+    return [];
+  }, [snapshots, transactions, receivables, payables, state.startingBalance]);
   const { invoicePaidTotal, invoicePendingTotal, invoiceOverdueTotal } = useMemo(() => {
     let paid = state.invoices.filter(inv => inv.status === "Paid").reduce((sum, inv) => sum + inv.amount, 0);
     let pending = state.invoices.filter(inv => inv.status === "Pending").reduce((sum, inv) => sum + inv.amount, 0);
@@ -108,13 +175,6 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
       overdue = overdue30DaysTotal > 0 ? overdue30DaysTotal : receivables * 0.25;
       pending = Math.max(0, receivables - overdue);
       paid = receivables * 0.3;
-    }
-
-    // Graceful sample fallback so the Pie Chart is never blank
-    if (paid === 0 && pending === 0 && overdue === 0) {
-      paid = 12500;
-      pending = 8400;
-      overdue = 3200;
     }
 
     return { invoicePaidTotal: paid, invoicePendingTotal: pending, invoiceOverdueTotal: overdue };
@@ -167,14 +227,8 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
       if (aggregated.length > 0) return aggregated;
     }
 
-    // 4. Graceful sample fallback so the Customer Exposure Bar Chart is never blank
-    return [
-      { name: "Surinder", Amount: 8720 },
-      { name: "Acme", Amount: 5400 },
-      { name: "Apex", Amount: 3100 },
-      { name: "Nexus", Amount: 2400 },
-    ];
-  }, [state.ledger, transactions, state.invoices]);
+    return [];
+  }, [transactions, state.ledger, state.invoices]);
 
 
   return (
@@ -385,45 +439,58 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
           </div>
 
           <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorCashGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#D988A1" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#8A5A7B" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(158, 154, 167, 0.08)" vertical={false} />
-                <XAxis 
-                  dataKey="name" 
-                  stroke="#9E9AA7" 
-                  fontSize={10}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis 
-                  stroke="#9E9AA7" 
-                  fontSize={9}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(val) => `${state.currencySymbol}${(val / 1000).toFixed(0)}k`}
-                />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: "#1F1D2B", borderColor: "rgba(217, 136, 161, 0.2)", borderRadius: "16px", color: "#FFFFFF", fontSize: "11px", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.3)" }}
-                  formatter={(value: any) => [`${state.currencySymbol}${parseFloat(value).toLocaleString("en-US", {maximumFractionDigits: 0})}`, "Balance"]}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="Balance" 
-                  stroke="#D988A1" 
-                  strokeWidth={3}
-                  fillOpacity={1} 
-                  fill="url(#colorCashGrad)" 
-                  dot={{ r: 4, strokeWidth: 2, stroke: "#1F1D2B", fill: "#D988A1" }}
-                  activeDot={{ r: 6, strokeWidth: 0, fill: "#8A5A7B" }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {chartData.length === 0 ? (
+              <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 bg-neutral-50/50 dark:bg-[#13111C]/30 rounded-2xl border border-dashed border-neutral-200 dark:border-neutral-800/60">
+                <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1">No cash pool data recorded</p>
+                <p className="text-[11px] text-neutral-400 dark:text-neutral-500 max-w-xs mb-3">Upload your ledger sheet or bank statements to generate your runway timeline.</p>
+                <button 
+                  onClick={() => setView("upload")}
+                  className="px-3 py-1.5 bg-[#D988A1]/10 hover:bg-[#D988A1]/20 text-[#D988A1] rounded-xl text-xs font-semibold transition-all"
+                >
+                  Upload Data &rarr;
+                </button>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorCashGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#D988A1" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#8A5A7B" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(158, 154, 167, 0.08)" vertical={false} />
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="#9E9AA7" 
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis 
+                    stroke="#9E9AA7" 
+                    fontSize={9}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(val) => Math.abs(val) >= 1000 ? `${state.currencySymbol}${(val / 1000).toFixed(0)}k` : `${state.currencySymbol}${Number(val).toFixed(0)}`}
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: "#1F1D2B", borderColor: "rgba(217, 136, 161, 0.2)", borderRadius: "16px", color: "#FFFFFF", fontSize: "11px", boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.3)" }}
+                    formatter={(value: any) => [`${state.currencySymbol}${parseFloat(value).toLocaleString("en-US", {maximumFractionDigits: 0})}`, "Balance"]}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="Balance" 
+                    stroke="#D988A1" 
+                    strokeWidth={3}
+                    fillOpacity={1} 
+                    fill="url(#colorCashGrad)" 
+                    dot={{ r: 4, strokeWidth: 2, stroke: "#1F1D2B", fill: "#D988A1" }}
+                    activeDot={{ r: 6, strokeWidth: 0, fill: "#8A5A7B" }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -442,35 +509,42 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
             <p className="text-[11px] text-neutral-500 dark:text-[#9E9AA7] mb-4">Outstanding customer accounts sorted by priority action.</p>
 
             <div className="space-y-3.5">
-              {state.ledger.slice(0, 3).map((item) => (
-                <div 
-                  key={item.id}
-                  onClick={() => onQuickViewCustomer(item.name)}
-                  className="flex items-center justify-between p-3 rounded-[20px] bg-neutral-50 dark:bg-[#13111C]/60 border border-neutral-200 dark:border-neutral-800/60 hover:border-neutral-400 dark:hover:border-[#D988A1]/40 cursor-pointer transition-all"
-                >
-                  <div className="flex items-center gap-2.5 overflow-hidden">
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${
-                      item.overdue 
-                        ? "bg-[#D988A1]/10 text-[#D988A1] border border-[#D988A1]/20" 
-                        : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
-                    }`}>
-                      {item.initials}
-                    </div>
-                    <div className="overflow-hidden">
-                      <div className="text-xs font-semibold text-neutral-900 dark:text-white truncate">{item.name}</div>
-                      <div className="text-[10px] text-neutral-500 dark:text-[#9E9AA7] font-mono uppercase tracking-wider">
-                        {item.overdue ? "OVERDUE TERM" : "PENDING TERM"}
+              {state.ledger.length === 0 ? (
+                <div className="text-center py-8 bg-neutral-50/50 dark:bg-[#13111C]/30 rounded-[20px] border border-dashed border-neutral-200 dark:border-neutral-800/60 p-4">
+                  <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1">No ledger accounts</p>
+                  <p className="text-[11px] text-neutral-400 dark:text-neutral-500">Your customer ledger is currently empty.</p>
+                </div>
+              ) : (
+                state.ledger.slice(0, 3).map((item) => (
+                  <div 
+                    key={item.id}
+                    onClick={() => onQuickViewCustomer(item.name)}
+                    className="flex items-center justify-between p-3 rounded-[20px] bg-neutral-50 dark:bg-[#13111C]/60 border border-neutral-200 dark:border-neutral-800/60 hover:border-neutral-400 dark:hover:border-[#D988A1]/40 cursor-pointer transition-all"
+                  >
+                    <div className="flex items-center gap-2.5 overflow-hidden">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${
+                        item.overdue 
+                          ? "bg-[#D988A1]/10 text-[#D988A1] border border-[#D988A1]/20" 
+                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                      }`}>
+                        {item.initials}
+                      </div>
+                      <div className="overflow-hidden">
+                        <div className="text-xs font-semibold text-neutral-900 dark:text-white truncate">{item.name}</div>
+                        <div className="text-[10px] text-neutral-500 dark:text-[#9E9AA7] font-mono uppercase tracking-wider">
+                          {item.overdue ? "OVERDUE TERM" : "PENDING TERM"}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <div className={`text-xs font-heading font-bold tabular-nums ${item.amount < 0 ? "text-neutral-900 dark:text-white" : item.overdue ? "text-[#D988A1]" : "text-neutral-700 dark:text-[#E2DFE9]"}`}>
-                      {item.amount < 0 ? "" : state.currencySymbol}{item.amount.toLocaleString("en-US", { minimumFractionDigits: 0 })}
+                    <div className="text-right">
+                      <div className={`text-xs font-heading font-bold tabular-nums ${item.amount < 0 ? "text-neutral-900 dark:text-white" : item.overdue ? "text-[#D988A1]" : "text-neutral-700 dark:text-[#E2DFE9]"}`}>
+                        {item.amount < 0 ? "" : state.currencySymbol}{item.amount.toLocaleString("en-US", { minimumFractionDigits: 0 })}
+                      </div>
+                      <div className="text-[9px] text-neutral-500 dark:text-[#9E9AA7] font-mono">due {item.dueDate || "N/A"}</div>
                     </div>
-                    <div className="text-[9px] text-neutral-500 dark:text-[#9E9AA7] font-mono">due {item.dueDate || "N/A"}</div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
@@ -496,54 +570,61 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
             <p className="text-[11px] text-neutral-500 dark:text-[#9E9AA7]">Status breakdown of issued commercial billings</p>
           </div>
           
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="w-full sm:w-1/2 h-44">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={68}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: "#1F1D2B", borderColor: "rgba(217, 136, 161, 0.2)", borderRadius: "16px", color: "#FFFFFF", fontSize: "11px" }}
-                    formatter={(value: any) => [`${state.currencySymbol}${parseFloat(value).toLocaleString("en-US", {maximumFractionDigits: 0})}`, "Total"]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+          {(invoicePaidTotal + invoicePendingTotal + invoiceOverdueTotal === 0) ? (
+            <div className="h-44 w-full flex flex-col items-center justify-center text-center p-4 bg-neutral-50/50 dark:bg-[#13111C]/30 rounded-2xl border border-dashed border-neutral-200 dark:border-neutral-800/60">
+              <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1">No invoices tracked</p>
+              <p className="text-[11px] text-neutral-400 dark:text-neutral-500">Upload transaction records or invoices to view payment distribution.</p>
             </div>
-            
-            <div className="w-full sm:w-1/2 space-y-2.5">
-              {pieData.map((item) => {
-                const totalInvoicesValue = invoicePaidTotal + invoicePendingTotal + invoiceOverdueTotal;
-                const pct = totalInvoicesValue > 0 ? ((item.value / totalInvoicesValue) * 100).toFixed(0) : "0";
-                return (
-                  <div key={item.name} className="flex items-center justify-between p-2 rounded-[16px] bg-neutral-50 dark:bg-[#13111C]/40 border border-neutral-100 dark:border-neutral-800/40">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }}></span>
-                      <span className="text-[11px] font-semibold text-neutral-800 dark:text-white">{item.name}</span>
+          ) : (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+              <div className="w-full sm:w-1/2 h-44">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={68}
+                      paddingAngle={4}
+                      dataKey="value"
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: "#1F1D2B", borderColor: "rgba(217, 136, 161, 0.2)", borderRadius: "16px", color: "#FFFFFF", fontSize: "11px" }}
+                      formatter={(value: any) => [`${state.currencySymbol}${parseFloat(value).toLocaleString("en-US", {maximumFractionDigits: 0})}`, "Total"]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              
+              <div className="w-full sm:w-1/2 space-y-2.5">
+                {pieData.map((item) => {
+                  const totalInvoicesValue = invoicePaidTotal + invoicePendingTotal + invoiceOverdueTotal;
+                  const pct = totalInvoicesValue > 0 ? ((item.value / totalInvoicesValue) * 100).toFixed(0) : "0";
+                  return (
+                    <div key={item.name} className="flex items-center justify-between p-2 rounded-[16px] bg-neutral-50 dark:bg-[#13111C]/40 border border-neutral-100 dark:border-neutral-800/40">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }}></span>
+                        <span className="text-[11px] font-semibold text-neutral-800 dark:text-white">{item.name}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[11px] font-bold font-mono text-neutral-900 dark:text-white block">
+                          {state.currencySymbol}{item.value.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                        </span>
+                        <span className="text-[9px] text-neutral-400 font-mono block">
+                          {pct}% share
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[11px] font-bold font-mono text-neutral-900 dark:text-white block">
-                        {state.currencySymbol}{item.value.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                      </span>
-                      <span className="text-[9px] text-neutral-400 font-mono block">
-                        {pct}% share
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Ledger Receivables Allocation (Bar Chart) */}
@@ -554,43 +635,50 @@ export const DashboardView: React.FC<DashboardProps> = ({ state, onAskNova, onQu
           </div>
 
           <div className="h-44 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData} layout="vertical" margin={{ top: 5, right: 15, left: -5, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(158, 154, 167, 0.05)" horizontal={false} />
-                <XAxis 
-                  type="number" 
-                  stroke="#9E9AA7" 
-                  fontSize={9} 
-                  tickLine={false} 
-                  axisLine={false}
-                  tickFormatter={(val) => `${state.currencySymbol}${(val / 1000).toFixed(0)}k`}
-                />
-                <YAxis 
-                  type="category" 
-                  dataKey="name" 
-                  stroke="#9E9AA7" 
-                  fontSize={10} 
-                  tickLine={false} 
-                  axisLine={false} 
-                  width={65}
-                />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: "#1F1D2B", borderColor: "rgba(217, 136, 161, 0.2)", borderRadius: "16px", color: "#FFFFFF", fontSize: "11px" }}
-                  formatter={(value: any) => [`${state.currencySymbol}${parseFloat(value).toLocaleString("en-US", {maximumFractionDigits: 0})}`, "Exposure"]}
-                />
-                <Bar 
-                  dataKey="Amount" 
-                  fill="#D988A1" 
-                  radius={[0, 10, 10, 0]}
-                  maxBarSize={14}
-                >
-                  {barData.map((entry, index) => {
-                    const colors = ["#D988A1", "#B37189", "#8A5A7B", "#6B425F", "#4F2B45"];
-                    return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
-                  })}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {barData.length === 0 ? (
+              <div className="w-full h-full flex flex-col items-center justify-center text-center p-4 bg-neutral-50/50 dark:bg-[#13111C]/30 rounded-2xl border border-dashed border-neutral-200 dark:border-neutral-800/60">
+                <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 mb-1">No customer obligations</p>
+                <p className="text-[11px] text-neutral-400 dark:text-neutral-500">Upload your ledger to view top account exposures.</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={barData} layout="vertical" margin={{ top: 5, right: 15, left: -5, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(158, 154, 167, 0.05)" horizontal={false} />
+                  <XAxis 
+                    type="number" 
+                    stroke="#9E9AA7" 
+                    fontSize={9} 
+                    tickLine={false} 
+                    axisLine={false}
+                    tickFormatter={(val) => Math.abs(val) >= 1000 ? `${state.currencySymbol}${(val / 1000).toFixed(0)}k` : `${state.currencySymbol}${Number(val).toFixed(0)}`}
+                  />
+                  <YAxis 
+                    type="category" 
+                    dataKey="name" 
+                    stroke="#9E9AA7" 
+                    fontSize={10} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    width={65}
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: "#1F1D2B", borderColor: "rgba(217, 136, 161, 0.2)", borderRadius: "16px", color: "#FFFFFF", fontSize: "11px" }}
+                    formatter={(value: any) => [`${state.currencySymbol}${parseFloat(value).toLocaleString("en-US", {maximumFractionDigits: 0})}`, "Exposure"]}
+                  />
+                  <Bar 
+                    dataKey="Amount" 
+                    fill="#D988A1" 
+                    radius={[0, 10, 10, 0]}
+                    maxBarSize={14}
+                  >
+                    {barData.map((entry, index) => {
+                      const colors = ["#D988A1", "#B37189", "#8A5A7B", "#6B425F", "#4F2B45"];
+                      return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
